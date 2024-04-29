@@ -4,6 +4,7 @@
 package software.aws.toolkits.jetbrains.services.amazonq
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
@@ -32,6 +33,7 @@ import software.aws.toolkits.jetbrains.core.credentials.reauthConnectionIfNeeded
 import software.aws.toolkits.jetbrains.core.credentials.sono.Q_SCOPES
 import software.aws.toolkits.jetbrains.core.credentials.sono.isSono
 import software.aws.toolkits.jetbrains.core.region.AwsRegionProvider
+import software.aws.toolkits.jetbrains.core.webview.BrowserMessage
 import software.aws.toolkits.jetbrains.core.webview.BrowserState
 import software.aws.toolkits.jetbrains.core.webview.LoginBrowser
 import software.aws.toolkits.jetbrains.core.webview.WebviewResourceHandlerFactory
@@ -106,30 +108,29 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
-        val jsonTree = objectMapper.readTree(it)
-        val command = jsonTree.get("command").asText()
-        LOG.debug { "Data received from Q browser: ${jsonTree.asText()}" }
+        val obj = objectMapper.readValue<BrowserMessage>(it)
+        LOG.debug { "Data received from Q browser: $obj" }
 
-        when (command) {
-            "prepareUi" -> {
+        when (obj) {
+            is BrowserMessage.PrepareUi -> {
                 this.prepareBrowser(BrowserState(FeatureId.Q, false))
             }
 
-            "selectConnection" -> {
-                val connId = jsonTree.get("connectionId").asText()
+            is BrowserMessage.SelectConnection -> {
+                val connId = obj.conectionId
                 this.selectionSettings[connId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
 
-            "loginBuilderId" -> {
+            is BrowserMessage.LoginBuilderId -> {
                 loginBuilderId(Q_SCOPES)
             }
 
-            "loginIdC" -> {
+            is BrowserMessage.LoginIdC-> {
                 // TODO: make it type safe, maybe (de)serialize into a data class
-                val url = jsonTree.get("url").asText()
-                val region = jsonTree.get("region").asText()
+                val url = obj.url
+                val region = obj.region
                 val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Q browser")
 
                 val scopes = Q_SCOPES
@@ -137,11 +138,11 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
                 loginIdC(url, awsRegion, scopes)
             }
 
-            "cancelLogin" -> {
+            is BrowserMessage.CancelLogin -> {
                 cancelLogin()
             }
 
-            "signout" -> {
+            is BrowserMessage.Signout -> {
                 (
                     ToolkitConnectionManager.getInstance(project)
                         .activeConnectionForFeature(QConnection.getInstance()) as? AwsBearerTokenConnection
@@ -156,7 +157,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
                 }
             }
 
-            "reauth" -> {
+            is BrowserMessage.Reauth -> {
                 ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(QConnection.getInstance())?.let { conn ->
                     if (conn is ManagedBearerSsoConnection) {
                         ApplicationManager.getApplication().executeOnPooledThread {
@@ -167,7 +168,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             else -> {
-                error("received unknown command from Q browser: $command")
+                error("received unknown command from Q browser: $obj")
             }
         }
 
