@@ -109,7 +109,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
-        val obj = objectMapper.readValue<BrowserMessage>(it)
+        val obj = objectMapper.readValue<BrowserMessage>(it) // TODO: try catch
         LOG.debug { "Data received from Q browser: $obj" }
 
         when (obj) {

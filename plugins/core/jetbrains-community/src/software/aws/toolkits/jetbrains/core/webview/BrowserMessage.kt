@@ -5,7 +5,6 @@ package software.aws.toolkits.jetbrains.core.webview
 
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
-import com.fasterxml.jackson.annotation.JsonTypeName
 
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
@@ -24,59 +23,31 @@ import com.fasterxml.jackson.annotation.JsonTypeName
     JsonSubTypes.Type(value = BrowserMessage.Reauth::class, name = "reauth")
 )
 sealed interface BrowserMessage {
-    val id: String
 
-    @JsonTypeName("prepareUi")
-    data object PrepareUi : BrowserMessage {
-        override val id = "prepareUi"
-    }
+    data object PrepareUi : BrowserMessage
 
-    @JsonTypeName("selectConnection")
-    data class SelectConnection(val conectionId: String) : BrowserMessage {
-        override val id = "selectConnection"
-    }
+    data class SelectConnection(val conectionId: String) : BrowserMessage
 
-    @JsonTypeName("toggleBrowser")
-    data object ToggleBrowser : BrowserMessage {
-        override val id = "toggleBrowser"
-    }
+    data object ToggleBrowser : BrowserMessage
 
-    @JsonTypeName("loginBuilderId")
-    data object LoginBuilderId : BrowserMessage {
-        override val id = "loginBuilderId"
-    }
+    data object LoginBuilderId : BrowserMessage
 
-    @JsonTypeName("loginIdC")
     data class LoginIdC(
         val url: String,
         val region: String,
         val feature: String
-    ) : BrowserMessage {
-        override val id = "loginIdC"
-    }
+    ) : BrowserMessage
 
-    @JsonTypeName("loginIAM")
     data class LoginIAM(
         val profileName: String,
         val accessKey: String,
         val secretKey: String
-    ) : BrowserMessage {
-        override val id = "loginIAM"
-    }
+    ) : BrowserMessage
 
 
-    @JsonTypeName("cancelLogin")
-    data object CancelLogin : BrowserMessage {
-        override val id = "cancelLogin"
-    }
+    data object CancelLogin : BrowserMessage
 
-    @JsonTypeName("signout")
-    data object Signout : BrowserMessage {
-        override val id = "signout"
-    }
+    data object Signout : BrowserMessage
 
-    @JsonTypeName("reauth")
-    data object Reauth : BrowserMessage {
-        override val id = "reauth"
-    }
+    data object Reauth : BrowserMessage
 }

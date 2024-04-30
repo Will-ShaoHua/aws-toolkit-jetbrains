@@ -4,6 +4,7 @@
 package software.aws.toolkits.jetbrains.core.explorer.webview
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -53,6 +54,7 @@ import software.aws.toolkits.jetbrains.core.explorer.showExplorerTree
 import software.aws.toolkits.jetbrains.core.gettingstarted.IdcRolePopup
 import software.aws.toolkits.jetbrains.core.gettingstarted.IdcRolePopupState
 import software.aws.toolkits.jetbrains.core.region.AwsRegionProvider
+import software.aws.toolkits.jetbrains.core.webview.BrowserMessage
 import software.aws.toolkits.jetbrains.core.webview.BrowserState
 import software.aws.toolkits.jetbrains.core.webview.LoginBrowser
 import software.aws.toolkits.jetbrains.core.webview.WebviewResourceHandlerFactory
@@ -162,34 +164,33 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
-        val jsonTree = objectMapper.readTree(it)
-        val command = jsonTree.get("command").asText()
-        LOG.debug { "Data received from Toolkit browser: ${jsonTree.toPrettyString()}" }
+        val obj = objectMapper.readValue<BrowserMessage>(it) // TODO: try catch
+        LOG.debug { "Data received from Toolkit browser: $obj" }
 
-        when (command) {
+        when (obj) {
             // TODO: handler functions could live in parent class
-            "prepareUi" -> {
+            is BrowserMessage.PrepareUi -> {
                 val cancellable = isTookitConnected(project)
                 this.prepareBrowser(BrowserState(FeatureId.AwsExplorer, browserCancellable = cancellable))
             }
 
-            "selectConnection" -> {
-                val connId = jsonTree.get("connectionId").asText()
+            is BrowserMessage.SelectConnection -> {
+                val connId = obj.conectionId
                 this.selectionSettings[connId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
 
-            "loginBuilderId" -> {
+            is BrowserMessage.LoginBuilderId -> {
                 loginBuilderId(CODECATALYST_SCOPES)
             }
 
-            "loginIdC" -> {
+            is BrowserMessage.LoginIdC -> {
                 // TODO: make it type safe, maybe (de)serialize into a data class
-                val url = jsonTree.get("url").asText()
-                val region = jsonTree.get("region").asText()
+                val url = obj.url
+                val region = obj.region
                 val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Toolkit browser")
-                val feature: String = jsonTree.get("feature").asText()
+                val feature: String = obj.feature
 
                 val scopes = if (FeatureId.from(feature) == FeatureId.Codecatalyst) {
                     CODECATALYST_SCOPES
@@ -200,23 +201,23 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
                 loginIdC(url, awsRegion, scopes)
             }
 
-            "loginIAM" -> {
+            is BrowserMessage.LoginIAM -> {
                 // TODO: make it type safe, maybe (de)serialize into a data class
-                val profileName = jsonTree.get("profileName").asText()
-                val accessKey = jsonTree.get("accessKey").asText()
-                val secretKey = jsonTree.get("secretKey").asText()
+                val profileName = obj.profileName
+                val accessKey = obj.accessKey
+                val secretKey = obj.secretKey
                 loginIAM(profileName, accessKey, secretKey)
             }
 
-            "toggleBrowser" -> {
+            is BrowserMessage.ToggleBrowser -> {
                 showExplorerTree(project)
             }
 
-            "cancelLogin" -> {
+            is BrowserMessage.CancelLogin -> {
                 cancelLogin()
             }
 
-            "signout" -> {
+            is BrowserMessage.CancelLogin -> {
                 ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(CodeCatalystConnection.getInstance())?.let { connection ->
                     connection as AwsBearerTokenConnection
                     SsoLogoutAction(connection).actionPerformed(
@@ -229,7 +230,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
                 }
             }
 
-            "reauth" -> {
+            is BrowserMessage.Reauth -> {
                 reauth(ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(CodeCatalystConnection.getInstance()))
             }
 
