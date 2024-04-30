@@ -39,6 +39,7 @@ import software.aws.toolkits.core.region.AwsRegion
 import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
+import software.aws.toolkits.core.utils.tryOrNull
 import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.Login
@@ -142,7 +143,6 @@ class ToolkitWebviewPanel(val project: Project, private val scope: CoroutineScop
     override fun dispose() {}
 }
 
-// TODO: STILL WIP thus duplicate code / pending move to plugins/toolkit
 class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: Disposable) : LoginBrowser(
     project,
     ToolkitWebviewBrowser.DOMAIN,
@@ -164,8 +164,11 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
-        val obj = objectMapper.readValue<BrowserMessage>(it) // TODO: try catch
-        LOG.debug { "Data received from Toolkit browser: $obj" }
+        val obj =  tryOrNull {
+            objectMapper.readValue<BrowserMessage>(it)
+        }?.also { command ->
+            LOG.debug { "Data received from Toolkit browser: $command" }
+        }
 
         when (obj) {
             // TODO: handler functions could live in parent class
@@ -175,8 +178,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.SelectConnection -> {
-                val connId = obj.conectionId
-                this.selectionSettings[connId]?.let { settings ->
+                this.selectionSettings[obj.conectionId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
@@ -186,27 +188,19 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.LoginIdC -> {
-                // TODO: make it type safe, maybe (de)serialize into a data class
-                val url = obj.url
-                val region = obj.region
-                val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Toolkit browser")
-                val feature: String = obj.feature
+                val awsRegion = AwsRegionProvider.getInstance()[obj.region] ?: error("unknown region returned from Toolkit browser")
 
-                val scopes = if (FeatureId.from(feature) == FeatureId.Codecatalyst) {
+                val scopes = if (FeatureId.from(obj.feature) == FeatureId.Codecatalyst) {
                     CODECATALYST_SCOPES
                 } else {
                     listOf(IDENTITY_CENTER_ROLE_ACCESS_SCOPE)
                 }
 
-                loginIdC(url, awsRegion, scopes)
+                loginIdC(obj.url, awsRegion, scopes)
             }
 
             is BrowserMessage.LoginIAM -> {
-                // TODO: make it type safe, maybe (de)serialize into a data class
-                val profileName = obj.profileName
-                val accessKey = obj.accessKey
-                val secretKey = obj.secretKey
-                loginIAM(profileName, accessKey, secretKey)
+                loginIAM(obj.profileName, obj.accessKey, obj.secretKey)
             }
 
             is BrowserMessage.ToggleBrowser -> {
@@ -217,7 +211,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
                 cancelLogin()
             }
 
-            is BrowserMessage.CancelLogin -> {
+            is BrowserMessage.Signout -> {
                 ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(CodeCatalystConnection.getInstance())?.let { connection ->
                     connection as AwsBearerTokenConnection
                     SsoLogoutAction(connection).actionPerformed(
@@ -235,7 +229,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             else -> {
-                error("received unknown command from Toolkit login browser")
+                LOG.error("received unknown command from Toolkit browser, raw data: $it")
             }
         }
 

@@ -23,6 +23,7 @@ import org.cef.CefApp
 import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
+import software.aws.toolkits.core.utils.tryOrNull
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.ManagedBearerSsoConnection
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
@@ -109,8 +110,11 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
-        val obj = objectMapper.readValue<BrowserMessage>(it) // TODO: try catch
-        LOG.debug { "Data received from Q browser: $obj" }
+        val obj = tryOrNull {
+            objectMapper.readValue<BrowserMessage>(it)
+        }?.also { command ->
+            LOG.debug { "Data received from Q browser: $command" }
+        }
 
         when (obj) {
             is BrowserMessage.PrepareUi -> {
@@ -122,8 +126,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             is BrowserMessage.SelectConnection -> {
-                val connId = obj.conectionId
-                this.selectionSettings[connId]?.let { settings ->
+                this.selectionSettings[obj.conectionId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
@@ -133,14 +136,12 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             is BrowserMessage.LoginIdC-> {
-                // TODO: make it type safe, maybe (de)serialize into a data class
-                val url = obj.url
                 val region = obj.region
                 val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Q browser")
 
                 val scopes = Q_SCOPES
 
-                loginIdC(url, awsRegion, scopes)
+                loginIdC(obj.url, awsRegion, scopes)
             }
 
             is BrowserMessage.CancelLogin -> {
@@ -173,7 +174,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             else -> {
-                error("received unknown command from Q browser: $obj")
+                LOG.error { "received unknown command from Q browser, raw data: $it" }
             }
         }
 
