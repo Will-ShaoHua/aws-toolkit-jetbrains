@@ -167,7 +167,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
         val obj =  tryOrNull {
             objectMapper.readValue<BrowserMessage>(it)
         }?.also { command ->
-            LOG.debug { "Data received from Toolkit browser: $command" }
+            LOG.debug { "Message received from Toolkit browser: $command" }
         }
 
         when (obj) {
@@ -229,7 +229,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             else -> {
-                LOG.error("received unknown command from Toolkit browser, raw data: $it")
+                LOG.error("received unknown command from Toolkit browser, unable to de-serialized, raw data: $it")
             }
         }
 

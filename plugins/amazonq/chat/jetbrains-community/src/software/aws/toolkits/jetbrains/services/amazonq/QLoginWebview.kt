@@ -113,7 +113,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
         val obj = tryOrNull {
             objectMapper.readValue<BrowserMessage>(it)
         }?.also { command ->
-            LOG.debug { "Data received from Q browser: $command" }
+            LOG.debug { "Message received from Q browser: $command" }
         }
 
         when (obj) {
@@ -174,7 +174,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             else -> {
-                LOG.error { "received unknown command from Q browser, raw data: $it" }
+                LOG.error { "received unknown command from Q browser, unable to de-serialized, raw data: $it" }
             }
         }
 
