@@ -164,7 +164,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
-        val obj =  tryOrNull {
+        val obj = tryOrNull {
             objectMapper.readValue<BrowserMessage>(it)
         }?.also { command ->
             LOG.debug { "Message received from Toolkit browser: $command" }

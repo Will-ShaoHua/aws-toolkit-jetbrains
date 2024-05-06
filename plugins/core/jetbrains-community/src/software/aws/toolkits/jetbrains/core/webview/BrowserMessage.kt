@@ -48,7 +48,6 @@ sealed interface BrowserMessage {
         val secretKey: String
     ) : BrowserMessage
 
-
     data object CancelLogin : BrowserMessage
 
     data object Signout : BrowserMessage

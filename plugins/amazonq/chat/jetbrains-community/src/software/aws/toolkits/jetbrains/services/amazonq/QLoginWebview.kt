@@ -135,7 +135,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
                 loginBuilderId(Q_SCOPES)
             }
 
-            is BrowserMessage.LoginIdC-> {
+            is BrowserMessage.LoginIdC -> {
                 val region = obj.region
                 val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Q browser")
 
