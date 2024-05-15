@@ -4,18 +4,29 @@
 package software.aws.toolkits.jetbrains.core
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
+import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.assertj.core.api.ObjectAssert
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import software.aws.toolkits.jetbrains.core.webview.BrowserMessage
 
 class BrowserMessageTest {
-    private lateinit var jsonObj: String
     private lateinit var objectMapper: ObjectMapper
+
+    private inline fun <reified T : BrowserMessage> assertDeserializedInstanceOf(jsonStr: String): ObjectAssert<BrowserMessage> {
+        val actual = objectMapper.readValue<BrowserMessage>(jsonStr)
+        return assertThat(actual).isInstanceOf(T::class.java)
+    }
+
+    private inline fun <reified T : Exception> assertDeserializedWillThrow(jsonStr: String) {
+        assertThatThrownBy {
+            objectMapper.readValue<BrowserMessage>(jsonStr)
+        }.isInstanceOf(T::class.java)
+    }
 
     @BeforeEach
     fun setup() {
@@ -23,126 +34,220 @@ class BrowserMessageTest {
     }
 
     @Test
-    fun `sereialization 1`() {
-        jsonObj = """
+    fun `exact match, deserialization return correct BrowserMessage subtype`() {
+        assertDeserializedInstanceOf<BrowserMessage.PrepareUi>(
+            """
             {
                 "command": "prepareUi"
             }
-        """.trimIndent()
+            """
+        )
 
-        val actual = objectMapper.readValue<BrowserMessage>(jsonObj)
-        assertThat(actual).isInstanceOf(BrowserMessage.PrepareUi::class.java)
-    }
-
-    @Test
-    fun `sereialization 2`() {
-        jsonObj = """
+        assertDeserializedInstanceOf<BrowserMessage.ToggleBrowser>(
+            """
             {
                 "command": "toggleBrowser"
             }
-        """.trimIndent()
+            """
+        )
 
-        val actual = objectMapper.readValue<BrowserMessage>(jsonObj)
-        assertThat(actual).isInstanceOf(BrowserMessage.ToggleBrowser::class.java)
-    }
-
-    @Test
-    fun `sereialization 3`() {
-        jsonObj = """
+        assertDeserializedInstanceOf<BrowserMessage.SelectConnection>(
+            """
             {
                 "command": "selectConnection",
                 "conectionId": "foo"
             }
-        """.trimIndent()
+            """
+        ).isEqualTo(BrowserMessage.SelectConnection("foo"))
 
-        val actual = objectMapper.readValue<BrowserMessage>(jsonObj)
-        assertThat(actual)
-            .isInstanceOf(BrowserMessage.SelectConnection::class.java)
-            .isEqualTo(BrowserMessage.SelectConnection("foo"))
-    }
-
-    @Test
-    fun `sereialization 4`() {
-        jsonObj = """
+        assertDeserializedInstanceOf<BrowserMessage.LoginBuilderId>(
+            """
             {
                 "command": "loginBuilderId"
             }
-        """.trimIndent()
+            """
+        )
 
-        val actual = objectMapper.readValue<BrowserMessage>(jsonObj)
-        assertThat(actual).isInstanceOf(BrowserMessage.LoginBuilderId::class.java)
-    }
-
-    @Test
-    fun `sereialization 5`() {
-        jsonObj = """
+        assertDeserializedInstanceOf<BrowserMessage.LoginIdC>(
+            """
             {
                 "command": "loginIdC",
                 "url": "foo",
                 "region": "bar",
                 "feature": "baz"
             }
-        """.trimIndent()
-
-        val actual = objectMapper.readValue<BrowserMessage>(jsonObj)
-        assertThat(actual)
-            .isInstanceOf(BrowserMessage.LoginIdC::class.java)
-            .isEqualTo(
-                BrowserMessage.LoginIdC(
-                    url = "foo",
-                    region = "bar",
-                    feature = "baz"
-                )
+            """
+        ).isEqualTo(
+            BrowserMessage.LoginIdC(
+                url = "foo",
+                region = "bar",
+                feature = "baz"
             )
-    }
+        )
 
-    @Test
-    fun `sereialization 6`() {
-        jsonObj = """
+        assertDeserializedInstanceOf<BrowserMessage.LoginIAM>(
+            """
             {
                 "command": "loginIAM",
                 "profileName": "foo",
                 "accessKey": "bar",
                 "secretKey": "baz"
             }
-        """.trimIndent()
-
-        val actual = objectMapper.readValue<BrowserMessage>(jsonObj)
-        assertThat(actual)
-            .isInstanceOf(BrowserMessage.LoginIAM::class.java)
-            .isEqualTo(
-                BrowserMessage.LoginIAM(
-                    profileName = "foo",
-                    accessKey = "bar",
-                    secretKey = "baz"
-                )
+            """
+        ).isEqualTo(
+            BrowserMessage.LoginIAM(
+                profileName = "foo",
+                accessKey = "bar",
+                secretKey = "baz"
             )
-    }
+        )
 
-    @Test
-    fun `failure 1`() {
-        assertThatThrownBy {
-            jsonObj = """
+        assertDeserializedInstanceOf<BrowserMessage.CancelLogin>(
+            """
             {
-                "command": "loginIAM"
+                "command": "cancelLogin"
             }
-            """.trimIndent()
+            """
+        )
 
-            objectMapper.readValue<BrowserMessage>(jsonObj)
-        }.isInstanceOf(MissingKotlinParameterException::class.java)
+        assertDeserializedInstanceOf<BrowserMessage.Signout>(
+            """
+            {
+                "command": "signout"
+            }
+            """
+        )
+
+        assertDeserializedInstanceOf<BrowserMessage.Reauth>(
+            """
+            {
+                "command": "reauth"
+            }
+            """
+        )
     }
 
     @Test
-    fun `failure 2`() {
-        assertThatThrownBy {
-            jsonObj = """
+    fun `unrecognizable command - deserialize should throw MismatchedInputException`() {
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": ""
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "zxcasdqwe"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "foo bar baz"
+            }
+            """
+        )
+    }
+
+    @Test
+    fun `unknown fields - deserialize should throw MismatchedInputException`() {
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "prepareUi",
+                "unknown": "foo"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
             {
                 "command": "loginIAM",
-                "foo": "FOO"
+                "profileName": "foo",
+                "unknown": "bar"
             }
-            """.trimIndent()
+            """
+        )
+    }
 
-            objectMapper.readValue<BrowserMessage>(jsonObj)
-        }.isInstanceOf(MissingKotlinParameterException::class.java)
+    @Test
+    fun `missing required fields - deserialize fail `() {
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "selectConnection"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIAM",
+                "accessKey": "foo"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIdC"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIdC",
+                "url": "foo"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIdC",
+                "region": "bar",
+                "feature": "baz"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIAM",
+                "profileName": "bar"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIAM",
+                "profileName": "bar",
+                "secretKey": "foo"
+            }
+            """
+        )
+
+        assertDeserializedWillThrow<MismatchedInputException>(
+            """
+            {
+                "command": "loginIAM",
+                "accessKey": "foo"
+            }
+            """
+        )
     }
 }
