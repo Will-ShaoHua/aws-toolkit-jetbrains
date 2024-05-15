@@ -126,7 +126,7 @@ class BrowserMessageTest {
             {
                 "command": "loginIAM"
             }
-        """.trimIndent()
+            """.trimIndent()
 
             objectMapper.readValue<BrowserMessage>(jsonObj)
         }.isInstanceOf(MissingKotlinParameterException::class.java)
@@ -140,7 +140,7 @@ class BrowserMessageTest {
                 "command": "loginIAM",
                 "foo": "FOO"
             }
-        """.trimIndent()
+            """.trimIndent()
 
             objectMapper.readValue<BrowserMessage>(jsonObj)
         }.isInstanceOf(MissingKotlinParameterException::class.java)
