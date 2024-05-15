@@ -229,7 +229,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             else -> {
-                LOG.error("received unknown command from Toolkit browser, unable to de-serialized, raw data: $it")
+                LOG.error { "received unknown command from Toolkit browser, unable to de-serialized, raw data: $it" }
             }
         }
 
