@@ -28,13 +28,14 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 )
 sealed interface BrowserMessage {
 
-    data object PrepareUi : BrowserMessage
+    // TODO: make it data object when 232 is not supported by us as data object syntax is not available
+    object PrepareUi : BrowserMessage
 
     data class SelectConnection(val conectionId: String) : BrowserMessage
 
-    data object ToggleBrowser : BrowserMessage
+    object ToggleBrowser : BrowserMessage
 
-    data object LoginBuilderId : BrowserMessage
+    object LoginBuilderId : BrowserMessage
 
     data class LoginIdC(
         val url: String,
@@ -48,9 +49,9 @@ sealed interface BrowserMessage {
         val secretKey: String
     ) : BrowserMessage
 
-    data object CancelLogin : BrowserMessage
+    object CancelLogin : BrowserMessage
 
-    data object Signout : BrowserMessage
+    object Signout : BrowserMessage
 
-    data object Reauth : BrowserMessage
+    object Reauth : BrowserMessage
 }
