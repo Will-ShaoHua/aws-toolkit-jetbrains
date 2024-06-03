@@ -9,15 +9,13 @@ import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.project.modules
 import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VFileProperty
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.time.withTimeout
+import kotlinx.coroutines.runBlocking
 import software.aws.toolkits.core.utils.createTemporaryZipFile
 import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.putNextEntry
+import software.aws.toolkits.jetbrains.services.amazonq.FeatureDevSessionContext
 import software.aws.toolkits.jetbrains.services.codewhisperer.codescan.fileTooLarge
 import software.aws.toolkits.jetbrains.services.codewhisperer.codescan.noFileOpenError
 import software.aws.toolkits.jetbrains.services.codewhisperer.codescan.noSupportedFilesError
@@ -31,13 +29,10 @@ import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhisperer
 import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhispererConstants.DEFAULT_PAYLOAD_LIMIT_IN_BYTES
 import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhispererConstants.FILE_SCAN_PAYLOAD_SIZE_LIMIT_IN_BYTES
 import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhispererConstants.FILE_SCAN_TIMEOUT_IN_SECONDS
-import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhispererConstants.TOTAL_BYTES_IN_KB
-import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhispererConstants.TOTAL_BYTES_IN_MB
 import software.aws.toolkits.telemetry.CodewhispererLanguage
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.time.Duration
 import java.time.Instant
 import java.util.Stack
 import kotlin.io.path.relativeTo
@@ -52,7 +47,7 @@ class CodeScanSessionConfig(
     }
         private set
 
-    private var isProjectTruncated = false
+    private val featureDevSessionContext = FeatureDevSessionContext(project)
 
     /**
      * Timeout for the overall job - "Run Security Scan".
@@ -67,11 +62,8 @@ class CodeScanSessionConfig(
         else -> (DEFAULT_PAYLOAD_LIMIT_IN_BYTES)
     }
 
-    private fun willExceedPayloadLimit(currentTotalFileSize: Long, currentFileSize: Long): Boolean {
-        val exceedsLimit = currentTotalFileSize > getPayloadLimitInBytes() - currentFileSize
-        isProjectTruncated = isProjectTruncated || exceedsLimit
-        return exceedsLimit
-    }
+    private fun willExceedPayloadLimit(currentTotalFileSize: Long, currentFileSize: Long): Boolean =
+        currentTotalFileSize.let { totalSize -> totalSize > (getPayloadLimitInBytes() - currentFileSize) }
 
     private var programmingLanguage: CodeWhispererProgrammingLanguage = selectedFile?.programmingLanguage() ?: CodeWhispererUnknownLanguage.INSTANCE
 
@@ -87,7 +79,7 @@ class CodeScanSessionConfig(
 
         // Fail fast if the selected file size is greater than the payload limit.
         if (selectedFile != null && selectedFile.length > getPayloadLimitInBytes()) {
-            fileTooLarge(getPresentablePayloadLimit())
+            fileTooLarge()
         }
 
         val start = Instant.now().toEpochMilli()
@@ -98,7 +90,12 @@ class CodeScanSessionConfig(
             null -> getProjectPayloadMetadata()
             else -> when (scope) {
                 CodeAnalysisScope.PROJECT -> getProjectPayloadMetadata()
-                CodeAnalysisScope.FILE -> getFilePayloadMetadata(selectedFile)
+                CodeAnalysisScope.FILE -> if (selectedFile.path.startsWith(projectRoot.path)) {
+                    getFilePayloadMetadata(selectedFile)
+                } else {
+                    projectRoot = selectedFile.parent
+                    getFilePayloadMetadata(selectedFile)
+                }
             }
         }
 
@@ -118,7 +115,6 @@ class CodeScanSessionConfig(
     }
 
     fun getFilePayloadMetadata(file: VirtualFile): PayloadMetadata =
-        // Handle the case where the selected file is outside the project root.
         PayloadMetadata(
             setOf(file.path),
             file.length,
@@ -131,38 +127,9 @@ class CodeScanSessionConfig(
      */
     fun createPayloadTimeoutInSeconds(): Long = CODE_SCAN_CREATE_PAYLOAD_TIMEOUT_IN_SECONDS
 
-    fun getPresentablePayloadLimit(): String = when (getPayloadLimitInBytes() >= TOTAL_BYTES_IN_MB) {
-        true -> "${getPayloadLimitInBytes() / TOTAL_BYTES_IN_MB}MB"
-        false -> "${getPayloadLimitInBytes() / TOTAL_BYTES_IN_KB}KB"
-    }
-
     private fun countLinesInVirtualFile(virtualFile: VirtualFile): Int {
         val bufferedReader = virtualFile.inputStream.bufferedReader()
         return bufferedReader.useLines { lines -> lines.count() }
-    }
-
-    suspend fun getTotalProjectSizeInBytes(): Long {
-        var totalSize = 0L
-        try {
-            withTimeout(Duration.ofSeconds(TELEMETRY_TIMEOUT_IN_SECONDS)) {
-                if (scope == CodeAnalysisScope.FILE) {
-                    totalSize = selectedFile?.length ?: 0L
-                } else {
-                    val changeListManager = ChangeListManager.getInstance(project)
-                    VfsUtil.collectChildrenRecursively(projectRoot).filter {
-                        !it.isDirectory && !it.`is`((VFileProperty.SYMLINK)) && (
-                            !changeListManager.isIgnoredFile(it)
-                            )
-                    }.fold(0L) { acc, next ->
-                        totalSize = acc + next.length
-                        totalSize
-                    }
-                }
-            }
-        } catch (e: TimeoutCancellationException) {
-            // Do nothing
-        }
-        return totalSize
     }
 
     private fun zipFiles(files: List<Path>): File = createTemporaryZipFile {
@@ -189,10 +156,12 @@ class CodeScanSessionConfig(
                     val current = stack.pop()
 
                     if (!current.isDirectory) {
-                        if (!changeListManager.isIgnoredFile(current) && !files.contains(current.path)
+                        if (!changeListManager.isIgnoredFile(current) &&
+                            runBlocking { !featureDevSessionContext.ignoreFile(current, this) } &&
+                            !files.contains(current.path)
                         ) {
                             if (willExceedPayloadLimit(currentTotalFileSize, current.length)) {
-                                break@moduleLoop
+                                fileTooLarge()
                             } else {
                                 val language = current.programmingLanguage()
                                 if (language != CodeWhispererPlainText.INSTANCE && language != CodeWhispererUnknownLanguage.INSTANCE) {
@@ -206,7 +175,9 @@ class CodeScanSessionConfig(
                         }
                     } else {
                         // Directory case: only traverse if not ignored
-                        if (!changeListManager.isIgnoredFile(current) && !traversedDirectories.contains(current)
+                        if (!changeListManager.isIgnoredFile(current) &&
+                            runBlocking { !featureDevSessionContext.ignoreFile(current, this) } &&
+                            !traversedDirectories.contains(current)
                         ) {
                             for (child in current.children) {
                                 stack.push(child)
@@ -229,8 +200,6 @@ class CodeScanSessionConfig(
         return PayloadMetadata(files, currentTotalFileSize, currentTotalLines, maxCountLanguage.toTelemetryType())
     }
 
-    fun isProjectTruncated() = isProjectTruncated
-
     fun getPath(root: String, relativePath: String = ""): Path? = try {
         Path.of(root, relativePath).normalize()
     } catch (e: Exception) {
@@ -242,7 +211,6 @@ class CodeScanSessionConfig(
 
     companion object {
         private val LOG = getLogger<CodeScanSessionConfig>()
-        private const val TELEMETRY_TIMEOUT_IN_SECONDS: Long = 10
         fun create(file: VirtualFile?, project: Project, scope: CodeAnalysisScope): CodeScanSessionConfig = CodeScanSessionConfig(file, project, scope)
     }
 }

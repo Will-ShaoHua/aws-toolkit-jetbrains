@@ -48,6 +48,7 @@ class SsoAccessTokenProvider(
     private val ssoRegion: String,
     private val cache: SsoCache,
     private val client: SsoOidcClient,
+    private val isAlwaysShowDeviceCode: Boolean = false,
     private val scopes: List<String> = emptyList(),
     private val clock: Clock = Clock.systemUTC()
 ) : SdkTokenProvider {
@@ -124,7 +125,7 @@ class SsoAccessTokenProvider(
         val registerResponse = client.registerClient {
             it.clientType(PUBLIC_CLIENT_REGISTRATION_TYPE)
             it.scopes(scopes)
-            it.clientName("AWS IDE Plugins for JetBrains")
+            it.clientName(PKCE_CLIENT_NAME)
         }
 
         val registeredClient = DeviceAuthorizationClientRegistration(
@@ -207,7 +208,7 @@ class SsoAccessTokenProvider(
 
     @Deprecated("Device authorization grant flow is deprecated")
     private fun pollForDAGToken(): AccessToken {
-        val onPendingToken = service<SsoLoginCallbackProvider>().getProvider(ssoUrl)
+        val onPendingToken = service<SsoLoginCallbackProvider>().getProvider(isAlwaysShowDeviceCode, ssoUrl)
         val progressIndicator = progressIndicator()
         val registration = registerDAGClient()
         val authorization = authorizeDAGClient(registration)
@@ -310,7 +311,11 @@ class SsoAccessTokenProvider(
             it.refreshToken(currentToken.refreshToken)
         }
 
-        val token = newToken.toDAGAccessToken(currentToken.createdAt)
+        val token = when (currentToken) {
+            is DeviceAuthorizationGrantToken -> newToken.toDAGAccessToken(currentToken.createdAt)
+            is PKCEAuthorizationGrantToken -> newToken.toPKCEAccessToken(currentToken.createdAt)
+        }
+
         saveAccessToken(token)
 
         return token
@@ -399,11 +404,24 @@ class SsoAccessTokenProvider(
         }
     }
 
-    private fun CreateTokenResponse.toDAGAccessToken(creationTime: Instant): AccessToken {
+    private fun CreateTokenResponse.toDAGAccessToken(creationTime: Instant): DeviceAuthorizationGrantToken {
         val expirationTime = Instant.now(clock).plusSeconds(expiresIn().toLong())
 
         return DeviceAuthorizationGrantToken(
             startUrl = ssoUrl,
+            region = ssoRegion,
+            accessToken = accessToken(),
+            refreshToken = refreshToken(),
+            expiresAt = expirationTime,
+            createdAt = creationTime
+        )
+    }
+
+    private fun CreateTokenResponse.toPKCEAccessToken(creationTime: Instant): PKCEAuthorizationGrantToken {
+        val expirationTime = Instant.now(clock).plusSeconds(expiresIn().toLong())
+
+        return PKCEAuthorizationGrantToken(
+            issuerUrl = ssoUrl,
             region = ssoRegion,
             accessToken = accessToken(),
             refreshToken = refreshToken(),
