@@ -91,10 +91,6 @@ abstract class LoginBrowser(
     @VisibleForTesting
     internal val objectMapper = jacksonObjectMapper()
 
-    protected val ssoRegions: String
-        get() = objectMapper.writeValueAsString(AwsRegionProvider.getInstance().allRegionsForService("sso").values)
-
-
     abstract fun customize(state: BrowserState): BrowserState
 
     abstract fun handleBrowserMessage(message: BrowserMessage?)
@@ -107,7 +103,7 @@ abstract class LoginBrowser(
         val jsonData = """
             {
                 stage: '${state.stage}',
-                regions: $ssoRegions,
+                regions: ${objectMapper.writeValueAsString(AwsRegionProvider.getInstance().allRegionsForService("sso").values)},
                 idcInfo: {
                     profileName: '${state.lastLoginIdcInfo.profileName}',
                     startUrl: '${state.lastLoginIdcInfo.startUrl}',
