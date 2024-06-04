@@ -3,8 +3,6 @@
 
 package software.aws.toolkits.jetbrains.services.amazonq
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
@@ -107,11 +105,10 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     // TODO: confirm if we need such configuration or the default is fine
     override val jcefBrowser = createBrowser(parentDisposable)
     private val query = JBCefJSQuery.create(jcefBrowser)
-    private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
         val obj = tryOrNull {
-            objectMapper.readValue<BrowserMessage>(it)
+            parseCommand(it)
         }?.also { command ->
             LOG.debug { "Message received from Q browser: $command" }
         }
@@ -126,7 +123,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             is BrowserMessage.SelectConnection -> {
-                this.selectionSettings[obj.conectionId]?.let { settings ->
+                this.selectionSettings[obj.connectionId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
@@ -226,9 +223,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
         val lastLoginIdcInfo = ToolkitAuthManager.getInstance().getLastLoginIdcInfo()
 
         // available regions
-        val regions = AwsRegionProvider.getInstance().allRegionsForService("sso").values.let {
-            objectMapper.writeValueAsString(it)
-        }
+        val regions = writeValueAsString(ssoRegions)
 
         // TODO: pass "REAUTH" if connection expires
         val stage = if (isQExpired(project)) {
@@ -248,7 +243,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
                 },
                 cancellable: ${state.browserCancellable},
                 feature: '${state.feature}',
-                existConnections: ${objectMapper.writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
+                existConnections: ${writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
             }
         """.trimIndent()
         executeJS("window.ideClient.prepareUi($jsonData)")

@@ -3,6 +3,8 @@
 
 package software.aws.toolkits.jetbrains.core.webview
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.progress.ProcessCanceledException
@@ -14,6 +16,7 @@ import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.jetbrains.annotations.VisibleForTesting
 import software.aws.toolkits.core.region.AwsRegion
 import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.error
@@ -28,6 +31,7 @@ import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
 import software.aws.toolkits.jetbrains.core.credentials.sso.PendingAuthorization
 import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.InteractiveBearerTokenProvider
 import software.aws.toolkits.jetbrains.core.credentials.ssoErrorMessageFromException
+import software.aws.toolkits.jetbrains.core.region.AwsRegionProvider
 import software.aws.toolkits.jetbrains.utils.pollFor
 import software.aws.toolkits.resources.message
 import software.aws.toolkits.telemetry.AwsTelemetry
@@ -62,6 +66,12 @@ abstract class LoginBrowser(
         }
     }
 
+    @VisibleForTesting
+    internal val objectMapper = jacksonObjectMapper()
+
+    protected val ssoRegions: Collection<AwsRegion>
+        get() = AwsRegionProvider.getInstance().allRegionsForService("sso").values
+
     abstract fun prepareBrowser(state: BrowserState)
 
     fun executeJS(jsScript: String) {
@@ -69,6 +79,10 @@ abstract class LoginBrowser(
             it.executeJavaScript(jsScript, it.url, 0)
         }
     }
+
+    fun parseCommand(json: String): BrowserMessage = objectMapper.readValue<BrowserMessage>(json)
+
+    protected fun writeValueAsString(any: Any): String = objectMapper.writeValueAsString(any)
 
     protected fun cancelLogin() {
         // Essentially Authorization becomes a mutable that allows browser and auth to communicate canceled

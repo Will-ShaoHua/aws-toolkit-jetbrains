@@ -31,7 +31,7 @@ sealed interface BrowserMessage {
     // TODO: make it data object when 232 is not supported by us as data object syntax is not available
     object PrepareUi : BrowserMessage
 
-    data class SelectConnection(val conectionId: String) : BrowserMessage
+    data class SelectConnection(val connectionId: String) : BrowserMessage
 
     object ToggleBrowser : BrowserMessage
 

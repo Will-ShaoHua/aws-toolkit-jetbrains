@@ -3,8 +3,6 @@
 
 package software.aws.toolkits.jetbrains.core.explorer.webview
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -161,11 +159,10 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             .build()
     }
     private val query: JBCefJSQuery = JBCefJSQuery.create(jcefBrowser)
-    private val objectMapper = jacksonObjectMapper()
 
     private val handler = Function<String, JBCefJSQuery.Response> {
         val obj = tryOrNull {
-            objectMapper.readValue<BrowserMessage>(it)
+            parseCommand(it)
         }?.also { command ->
             LOG.debug { "Message received from Toolkit browser: $command" }
         }
@@ -178,7 +175,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.SelectConnection -> {
-                this.selectionSettings[obj.conectionId]?.let { settings ->
+                this.selectionSettings[obj.connectionId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
@@ -279,8 +276,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
         val lastLoginIdcInfo = ToolkitAuthManager.getInstance().getLastLoginIdcInfo()
 
         // available regions
-        val regions = AwsRegionProvider.getInstance().allRegionsForService("sso").values
-        val regionJson = objectMapper.writeValueAsString(regions)
+        val regionJson = writeValueAsString(ssoRegions)
 
         // TODO: if codecatalyst connection expires, set stage to 'REAUTH'
         // TODO: make these strings type safe
@@ -303,7 +299,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
                 },
                 cancellable: ${state.browserCancellable},
                 feature: '${state.feature}',
-                existConnections: ${objectMapper.writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
+                existConnections: ${writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
             }
         """.trimIndent()
         executeJS("window.ideClient.prepareUi($jsonData)")
