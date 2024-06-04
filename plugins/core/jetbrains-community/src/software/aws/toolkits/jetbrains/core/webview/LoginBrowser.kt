@@ -26,7 +26,9 @@ import software.aws.toolkits.core.utils.tryOrNull
 import software.aws.toolkits.jetbrains.core.coroutines.projectCoroutineScope
 import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
+import software.aws.toolkits.jetbrains.core.credentials.LastLoginIdcInfo
 import software.aws.toolkits.jetbrains.core.credentials.Login
+import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnection
 import software.aws.toolkits.jetbrains.core.credentials.reauthConnectionIfNeeded
 import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
@@ -44,7 +46,14 @@ import software.aws.toolkits.telemetry.Result
 import java.util.concurrent.Future
 import java.util.function.Function
 
-data class BrowserState(val feature: FeatureId, val browserCancellable: Boolean = false, val requireReauth: Boolean = false)
+data class BrowserState(
+    val feature: FeatureId,
+    val browserCancellable: Boolean = false,
+    val requireReauth: Boolean = false,
+    var stage: String = "START",
+    val lastLoginIdcInfo: LastLoginIdcInfo = ToolkitAuthManager.getInstance().getLastLoginIdcInfo(),
+    val existingConnections: List<AwsBearerTokenConnection> = emptyList()
+)
 
 abstract class LoginBrowser(
     private val project: Project,
@@ -82,10 +91,33 @@ abstract class LoginBrowser(
     @VisibleForTesting
     internal val objectMapper = jacksonObjectMapper()
 
-    protected val ssoRegions: Collection<AwsRegion>
-        get() = AwsRegionProvider.getInstance().allRegionsForService("sso").values
+    protected val ssoRegions: String
+        get() = objectMapper.writeValueAsString(AwsRegionProvider.getInstance().allRegionsForService("sso").values)
 
-    abstract fun prepareBrowser(state: BrowserState)
+
+    abstract fun customize(state: BrowserState): BrowserState
+
+    fun prepareBrowser(state: BrowserState) {
+        selectionSettings.clear()
+
+        customize(state)
+
+        val jsonData = """
+            {
+                stage: '${state.stage}',
+                regions: $ssoRegions,
+                idcInfo: {
+                    profileName: '${state.lastLoginIdcInfo.profileName}',
+                    startUrl: '${state.lastLoginIdcInfo.startUrl}',
+                    region: '${state.lastLoginIdcInfo.region}'
+                },
+                cancellable: ${state.browserCancellable},
+                feature: '${state.feature}',
+                existConnections: ${objectMapper.writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
+            }
+        """.trimIndent()
+        executeJS("window.ideClient.prepareUi($jsonData)")
+    }
 
     abstract fun handleBrowserMessage(message: BrowserMessage?)
 
@@ -94,8 +126,6 @@ abstract class LoginBrowser(
             it.executeJavaScript(jsScript, it.url, 0)
         }
     }
-
-    protected fun writeValueAsString(any: Any): String = objectMapper.writeValueAsString(any)
 
     protected fun cancelLogin() {
         // Essentially Authorization becomes a mutable that allows browser and auth to communicate canceled

@@ -186,10 +186,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
         }
     }
 
-    override fun prepareBrowser(state: BrowserState) {
-        // TODO: duplicate code in ToolkitLoginWebview
-        selectionSettings.clear()
-
+    override fun customize(state: BrowserState): BrowserState {
         if (!isQConnected(project)) {
             // existing connections
             // TODO: filter "active"(state == 'AUTHENTICATED') connection only maybe?
@@ -209,34 +206,13 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             selectionSettings.putAll(bearerCreds)
         }
 
-        // previous login
-        val lastLoginIdcInfo = ToolkitAuthManager.getInstance().getLastLoginIdcInfo()
-
-        // available regions
-        val regions = writeValueAsString(ssoRegions)
-
-        // TODO: pass "REAUTH" if connection expires
-        val stage = if (isQExpired(project)) {
+        state.stage = if (isQExpired(project)) {
             "REAUTH"
         } else {
             "START"
         }
 
-        val jsonData = """
-            {
-                stage: '$stage',
-                regions: $regions,
-                idcInfo: {
-                    profileName: '${lastLoginIdcInfo.profileName}',
-                    startUrl: '${lastLoginIdcInfo.startUrl}',
-                    region: '${lastLoginIdcInfo.region}'
-                },
-                cancellable: ${state.browserCancellable},
-                feature: '${state.feature}',
-                existConnections: ${writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
-            }
-        """.trimIndent()
-        executeJS("window.ideClient.prepareUi($jsonData)")
+        return state
     }
 
     override fun loginIAM(profileName: String, accessKey: String, secretKey: String) {

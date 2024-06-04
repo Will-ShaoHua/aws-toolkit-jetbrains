@@ -239,9 +239,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
         }
     }
 
-    override fun prepareBrowser(state: BrowserState) {
-        selectionSettings.clear()
-
+    override fun customize(state: BrowserState): BrowserState {
         if (!isTookitConnected(project)) {
             // existing connections
             val bearerCreds = ToolkitAuthManager.getInstance().listConnections()
@@ -262,15 +260,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             selectionSettings.putAll(bearerCreds)
         }
 
-        // previous login
-        val lastLoginIdcInfo = ToolkitAuthManager.getInstance().getLastLoginIdcInfo()
-
-        // available regions
-        val regionJson = writeValueAsString(ssoRegions)
-
-        // TODO: if codecatalyst connection expires, set stage to 'REAUTH'
-        // TODO: make these strings type safe
-        val stage = if (state.feature == FeatureId.Codecatalyst) {
+        state.stage = if (state.feature == FeatureId.Codecatalyst) {
             "SSO_FORM"
         } else if (shouldPromptToolkitReauth(project)) {
             "REAUTH"
@@ -278,21 +268,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             "START"
         }
 
-        val jsonData = """
-            {
-                stage: '$stage',
-                regions: $regionJson,
-                idcInfo: {
-                    profileName: '${lastLoginIdcInfo.profileName}',
-                    startUrl: '${lastLoginIdcInfo.startUrl}',
-                    region: '${lastLoginIdcInfo.region}'
-                },
-                cancellable: ${state.browserCancellable},
-                feature: '${state.feature}',
-                existConnections: ${writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
-            }
-        """.trimIndent()
-        executeJS("window.ideClient.prepareUi($jsonData)")
+        return state
     }
 
     override fun loginIdC(url: String, region: AwsRegion, scopes: List<String>) {
