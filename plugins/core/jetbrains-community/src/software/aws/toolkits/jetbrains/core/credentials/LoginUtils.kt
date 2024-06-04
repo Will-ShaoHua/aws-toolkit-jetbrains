@@ -32,6 +32,7 @@ import java.io.IOException
 
 sealed interface Login {
     val id: CredentialSourceId
+    fun login(project: Project): ToolkitConnection?
 
     data class BuilderId(
         val scopes: List<String>,
@@ -40,9 +41,8 @@ sealed interface Login {
     ) : Login {
         override val id: CredentialSourceId = CredentialSourceId.AwsId
 
-        fun loginBuilderId(project: Project): Boolean {
-            loginSso(project, SONO_URL, SONO_REGION, scopes, onPendingToken, onError)
-            return true
+        override fun login(project: Project): ToolkitConnection? {
+            return loginSso(project, SONO_URL, SONO_REGION, scopes, onPendingToken, onError)
         }
     }
 
@@ -56,7 +56,7 @@ sealed interface Login {
         override val id: CredentialSourceId = CredentialSourceId.IamIdentityCenter
         private val configFilesFacade = DefaultConfigFilesFacade()
 
-        fun loginIdc(project: Project): AwsBearerTokenConnection? {
+        override fun login(project: Project): ToolkitConnection? {
             // we have this check here so we blow up early if user has an invalid config file
             try {
                 configFilesFacade.readSsoSessions()
@@ -89,27 +89,25 @@ sealed interface Login {
     data class LongLivedIAM(
         val profileName: String,
         val accessKey: String,
-        val secretKey: String
+        val secretKey: String,
+        val onConfigFileFacadeError: (Exception) -> Unit,
+        val onProfileAlreadyExist: () -> Unit,
+        val onConnectionValidationError: () -> Unit
     ) : Login {
         override val id: CredentialSourceId = CredentialSourceId.SharedCredentials
         private val configFilesFacade = DefaultConfigFilesFacade()
 
-        fun loginIAM(
-            project: Project,
-            onConfigFileFacadeError: (Exception) -> Unit,
-            onProfileAlreadyExist: () -> Unit,
-            onConnectionValidationError: () -> Unit
-        ): Boolean {
+        override fun login(project: Project): ToolkitConnection? {
             val existingProfiles = try {
                 configFilesFacade.readAllProfiles()
             } catch (e: Exception) {
                 onConfigFileFacadeError(e)
-                return false
+                return null
             }
 
             if (existingProfiles.containsKey(profileName)) {
                 onProfileAlreadyExist()
-                return false
+                return null
             }
 
             val callerIdentity = tryOrNull {
@@ -125,7 +123,7 @@ sealed interface Login {
 
             if (callerIdentity == null) {
                 onConnectionValidationError()
-                return false
+                return null
             }
 
             val profile = Profile.builder()
@@ -144,7 +142,11 @@ sealed interface Login {
             // TODO: should it live in configFileFacade
             VirtualFileManager.getInstance().refreshWithoutFileWatcher(false)
 
-            return true
+            return if (CredentialManager.getInstance().getCredentialIdentifiers().isNotEmpty()) {
+                return AwsConnectionManagerConnection(project)
+            } else {
+                null
+            }
         }
     }
 }

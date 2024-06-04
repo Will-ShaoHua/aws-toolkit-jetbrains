@@ -154,7 +154,7 @@ abstract class LoginBrowser(
             )
         }
         loginWithBackgroundContext {
-            Login.BuilderId(scopes, onPendingToken, onError).loginBuilderId(project)
+            Login.BuilderId(scopes, onPendingToken, onError).login(project)
             AwsTelemetry.loginWithBrowser(
                 project = null,
                 credentialStartUrl = SONO_URL,
@@ -179,7 +179,7 @@ abstract class LoginBrowser(
             )
         }
         loginWithBackgroundContext {
-            Login.IdC(url, region, scopes, onPendingToken, onError).loginIdc(project)
+            Login.IdC(url, region, scopes, onPendingToken, onError).login(project)
             AwsTelemetry.loginWithBrowser(
                 project = null,
                 credentialStartUrl = url,
@@ -194,9 +194,7 @@ abstract class LoginBrowser(
             Login.LongLivedIAM(
                 profileName,
                 accessKey,
-                secretKey
-            ).loginIAM(
-                project,
+                secretKey,
                 { error ->
                     AwsTelemetry.loginWithBrowser(
                         project = null,
@@ -221,7 +219,7 @@ abstract class LoginBrowser(
                         credentialType = CredentialType.StaticProfile
                     )
                 }
-            )
+            ).login(project)
             AwsTelemetry.loginWithBrowser(
                 project = null,
                 result = Result.Succeeded,

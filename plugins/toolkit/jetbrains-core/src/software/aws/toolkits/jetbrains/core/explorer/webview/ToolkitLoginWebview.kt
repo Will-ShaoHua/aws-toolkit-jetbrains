@@ -279,8 +279,9 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
         val login = Login.IdC(url, region, scopes, onPendingToken, onIdCError)
 
         loginWithBackgroundContext {
-            val connection = login.loginIdc(project)
+            val connection = login.login(project)
             if (connection != null && scopes.contains(IDENTITY_CENTER_ROLE_ACCESS_SCOPE)) {
+                connection as AwsBearerTokenConnection
                 val tokenProvider = connection.getConnectionSettings().tokenProvider
 
                 runInEdt {
