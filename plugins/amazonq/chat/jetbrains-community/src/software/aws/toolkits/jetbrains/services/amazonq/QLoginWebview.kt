@@ -18,10 +18,9 @@ import com.intellij.ui.dsl.gridLayout.VerticalAlign
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefJSQuery
 import org.cef.CefApp
-import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
-import software.aws.toolkits.core.utils.tryOrNull
+import software.aws.toolkits.core.utils.warn
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.ManagedBearerSsoConnection
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
@@ -43,7 +42,6 @@ import software.aws.toolkits.jetbrains.utils.isQExpired
 import software.aws.toolkits.telemetry.FeatureId
 import software.aws.toolkits.telemetry.WebviewTelemetry
 import java.awt.event.ActionListener
-import java.util.function.Function
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -106,78 +104,6 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     override val jcefBrowser = createBrowser(parentDisposable)
     private val query = JBCefJSQuery.create(jcefBrowser)
 
-    private val handler = Function<String, JBCefJSQuery.Response> {
-        val obj = tryOrNull {
-            parseCommand(it)
-        }?.also { command ->
-            LOG.debug { "Message received from Q browser: $command" }
-        }
-
-        when (obj) {
-            is BrowserMessage.PrepareUi -> {
-                this.prepareBrowser(BrowserState(FeatureId.Q, false))
-                WebviewTelemetry.amazonqSignInOpened(
-                    project,
-                    reAuth = isQExpired(project)
-                )
-            }
-
-            is BrowserMessage.SelectConnection -> {
-                this.selectionSettings[obj.connectionId]?.let { settings ->
-                    settings.onChange(settings.currentSelection)
-                }
-            }
-
-            is BrowserMessage.LoginBuilderId -> {
-                loginBuilderId(Q_SCOPES)
-            }
-
-            is BrowserMessage.LoginIdC -> {
-                val region = obj.region
-                val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Q browser")
-
-                val scopes = Q_SCOPES
-
-                loginIdC(obj.url, awsRegion, scopes)
-            }
-
-            is BrowserMessage.CancelLogin -> {
-                cancelLogin()
-            }
-
-            is BrowserMessage.Signout -> {
-                (
-                    ToolkitConnectionManager.getInstance(project)
-                        .activeConnectionForFeature(QConnection.getInstance()) as? AwsBearerTokenConnection
-                    )?.let { connection ->
-                    SsoLogoutAction(connection).actionPerformed(
-                        AnActionEvent.createFromDataContext(
-                            "qBrowser",
-                            null,
-                            DataContext.EMPTY_CONTEXT
-                        )
-                    )
-                }
-            }
-
-            is BrowserMessage.Reauth -> {
-                ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(QConnection.getInstance())?.let { conn ->
-                    if (conn is ManagedBearerSsoConnection) {
-                        ApplicationManager.getApplication().executeOnPooledThread {
-                            reauthConnectionIfNeeded(project, conn, onPendingToken)
-                        }
-                    }
-                }
-            }
-
-            else -> {
-                LOG.error { "received unknown command from Q browser, unable to de-serialized, raw data: $it" }
-            }
-        }
-
-        null
-    }
-
     init {
         CefApp.getInstance()
             .registerSchemeHandlerFactory(
@@ -195,6 +121,70 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     }
 
     fun component(): JComponent? = jcefBrowser.component
+
+    override fun handleBrowserMessage(message: BrowserMessage?) {
+        when (message) {
+            is BrowserMessage.PrepareUi -> {
+                this.prepareBrowser(BrowserState(FeatureId.Q, false))
+                WebviewTelemetry.amazonqSignInOpened(
+                    project,
+                    reAuth = isQExpired(project)
+                )
+            }
+
+            is BrowserMessage.SelectConnection -> {
+                this.selectionSettings[message.connectionId]?.let { settings ->
+                    settings.onChange(settings.currentSelection)
+                }
+            }
+
+            is BrowserMessage.LoginBuilderId -> {
+                loginBuilderId(Q_SCOPES)
+            }
+
+            is BrowserMessage.LoginIdC -> {
+                val region = message.region
+                val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Q browser")
+
+                val scopes = Q_SCOPES
+
+                loginIdC(message.url, awsRegion, scopes)
+            }
+
+            is BrowserMessage.CancelLogin -> {
+                cancelLogin()
+            }
+
+            is BrowserMessage.Signout -> {
+                (
+                    ToolkitConnectionManager.getInstance(project)
+                        .activeConnectionForFeature(QConnection.getInstance()) as? AwsBearerTokenConnection
+                    )?.let { connection ->
+                        SsoLogoutAction(connection).actionPerformed(
+                            AnActionEvent.createFromDataContext(
+                                "qBrowser",
+                                null,
+                                DataContext.EMPTY_CONTEXT
+                            )
+                        )
+                    }
+            }
+
+            is BrowserMessage.Reauth -> {
+                ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(QConnection.getInstance())?.let { conn ->
+                    if (conn is ManagedBearerSsoConnection) {
+                        ApplicationManager.getApplication().executeOnPooledThread {
+                            reauthConnectionIfNeeded(project, conn, onPendingToken)
+                        }
+                    }
+                }
+            }
+
+            else -> {
+                LOG.warn { "received unknown command from Q browser, unable to de-serialized" }
+            }
+        }
+    }
 
     override fun prepareBrowser(state: BrowserState) {
         // TODO: duplicate code in ToolkitLoginWebview

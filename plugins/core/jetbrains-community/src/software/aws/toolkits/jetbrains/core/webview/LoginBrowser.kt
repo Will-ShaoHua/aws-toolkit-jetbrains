@@ -17,10 +17,12 @@ import com.intellij.ui.jcef.JBCefJSQuery
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.VisibleForTesting
+import org.slf4j.event.Level
 import software.aws.toolkits.core.region.AwsRegion
 import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
+import software.aws.toolkits.core.utils.tryOrNull
 import software.aws.toolkits.jetbrains.core.coroutines.projectCoroutineScope
 import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
@@ -40,6 +42,7 @@ import software.aws.toolkits.telemetry.CredentialType
 import software.aws.toolkits.telemetry.FeatureId
 import software.aws.toolkits.telemetry.Result
 import java.util.concurrent.Future
+import java.util.function.Function
 
 data class BrowserState(val feature: FeatureId, val browserCancellable: Boolean = false, val requireReauth: Boolean = false)
 
@@ -49,6 +52,16 @@ abstract class LoginBrowser(
     val webScriptUri: String
 ) {
     abstract val jcefBrowser: JBCefBrowserBase
+
+    protected val handler = Function<String, JBCefJSQuery.Response> {
+        val obj = LOG.tryOrNull("Unable deserialize login browser message: $it", Level.WARN) {
+            objectMapper.readValue<BrowserMessage>(it)
+        }
+
+        handleBrowserMessage(obj)
+
+        null
+    }
 
     protected var currentAuthorization: PendingAuthorization? = null
 
@@ -74,13 +87,13 @@ abstract class LoginBrowser(
 
     abstract fun prepareBrowser(state: BrowserState)
 
+    abstract fun handleBrowserMessage(message: BrowserMessage?)
+
     fun executeJS(jsScript: String) {
         this.jcefBrowser.cefBrowser.let {
             it.executeJavaScript(jsScript, it.url, 0)
         }
     }
-
-    fun parseCommand(json: String): BrowserMessage = objectMapper.readValue<BrowserMessage>(json)
 
     protected fun writeValueAsString(any: Any): String = objectMapper.writeValueAsString(any)
 

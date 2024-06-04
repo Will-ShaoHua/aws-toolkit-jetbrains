@@ -34,10 +34,9 @@ import migration.software.aws.toolkits.jetbrains.core.credentials.CredentialMana
 import org.cef.CefApp
 import software.aws.toolkits.core.credentials.validatedSsoIdentifierFromUrl
 import software.aws.toolkits.core.region.AwsRegion
-import software.aws.toolkits.core.utils.debug
 import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
-import software.aws.toolkits.core.utils.tryOrNull
+import software.aws.toolkits.core.utils.warn
 import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.Login
@@ -61,7 +60,6 @@ import software.aws.toolkits.jetbrains.isDeveloperMode
 import software.aws.toolkits.jetbrains.utils.isTookitConnected
 import software.aws.toolkits.telemetry.FeatureId
 import java.awt.event.ActionListener
-import java.util.function.Function
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -160,14 +158,24 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     }
     private val query: JBCefJSQuery = JBCefJSQuery.create(jcefBrowser)
 
-    private val handler = Function<String, JBCefJSQuery.Response> {
-        val obj = tryOrNull {
-            parseCommand(it)
-        }?.also { command ->
-            LOG.debug { "Message received from Toolkit browser: $command" }
-        }
+    init {
+        CefApp.getInstance()
+            .registerSchemeHandlerFactory(
+                "http",
+                domain,
+                WebviewResourceHandlerFactory(
+                    domain = "http://$domain/",
+                    assetUri = "/webview/assets/"
+                ),
+            )
 
-        when (obj) {
+        loadWebView(query)
+
+        query.addHandler(handler)
+    }
+
+    override fun handleBrowserMessage(message: BrowserMessage?) {
+        when (message) {
             // TODO: handler functions could live in parent class
             is BrowserMessage.PrepareUi -> {
                 val cancellable = isTookitConnected(project)
@@ -175,7 +183,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.SelectConnection -> {
-                this.selectionSettings[obj.connectionId]?.let { settings ->
+                this.selectionSettings[message.connectionId]?.let { settings ->
                     settings.onChange(settings.currentSelection)
                 }
             }
@@ -185,19 +193,19 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.LoginIdC -> {
-                val awsRegion = AwsRegionProvider.getInstance()[obj.region] ?: error("unknown region returned from Toolkit browser")
+                val awsRegion = AwsRegionProvider.getInstance()[message.region] ?: error("unknown region returned from Toolkit browser")
 
-                val scopes = if (FeatureId.from(obj.feature) == FeatureId.Codecatalyst) {
+                val scopes = if (FeatureId.from(message.feature) == FeatureId.Codecatalyst) {
                     CODECATALYST_SCOPES
                 } else {
                     listOf(IDENTITY_CENTER_ROLE_ACCESS_SCOPE)
                 }
 
-                loginIdC(obj.url, awsRegion, scopes)
+                loginIdC(message.url, awsRegion, scopes)
             }
 
             is BrowserMessage.LoginIAM -> {
-                loginIAM(obj.profileName, obj.accessKey, obj.secretKey)
+                loginIAM(message.profileName, message.accessKey, message.secretKey)
             }
 
             is BrowserMessage.ToggleBrowser -> {
@@ -226,27 +234,9 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             else -> {
-                LOG.error { "received unknown command from Toolkit browser, unable to de-serialized, raw data: $it" }
+                LOG.warn { "received unknown command from Toolkit browser, unable to de-serialized" }
             }
         }
-
-        null
-    }
-
-    init {
-        CefApp.getInstance()
-            .registerSchemeHandlerFactory(
-                "http",
-                domain,
-                WebviewResourceHandlerFactory(
-                    domain = "http://$domain/",
-                    assetUri = "/webview/assets/"
-                ),
-            )
-
-        loadWebView(query)
-
-        query.addHandler(handler)
     }
 
     override fun prepareBrowser(state: BrowserState) {
