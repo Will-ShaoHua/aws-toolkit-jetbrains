@@ -97,6 +97,8 @@ abstract class LoginBrowser(
 
     abstract fun customize(state: BrowserState): BrowserState
 
+    abstract fun handleBrowserMessage(message: BrowserMessage?)
+
     fun prepareBrowser(state: BrowserState) {
         selectionSettings.clear()
 
@@ -119,9 +121,7 @@ abstract class LoginBrowser(
         executeJS("window.ideClient.prepareUi($jsonData)")
     }
 
-    abstract fun handleBrowserMessage(message: BrowserMessage?)
-
-    fun executeJS(jsScript: String) {
+    private fun executeJS(jsScript: String) {
         this.jcefBrowser.cefBrowser.let {
             it.executeJavaScript(jsScript, it.url, 0)
         }
