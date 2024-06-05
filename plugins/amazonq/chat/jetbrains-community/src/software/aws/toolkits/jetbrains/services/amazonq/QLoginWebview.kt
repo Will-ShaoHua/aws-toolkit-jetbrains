@@ -161,14 +161,14 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
                     ToolkitConnectionManager.getInstance(project)
                         .activeConnectionForFeature(QConnection.getInstance()) as? AwsBearerTokenConnection
                     )?.let { connection ->
-                    SsoLogoutAction(connection).actionPerformed(
-                        AnActionEvent.createFromDataContext(
-                            "qBrowser",
-                            null,
-                            DataContext.EMPTY_CONTEXT
+                        SsoLogoutAction(connection).actionPerformed(
+                            AnActionEvent.createFromDataContext(
+                                "qBrowser",
+                                null,
+                                DataContext.EMPTY_CONTEXT
+                            )
                         )
-                    )
-                }
+                    }
             }
 
             is BrowserMessage.Reauth -> {
@@ -184,19 +184,20 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     override fun customize(state: BrowserState): BrowserState {
         if (!isQConnected(project)) {
             // existing connections
-            // TODO: filter "active"(state == 'AUTHENTICATED') connection only maybe?
-            val bearerCreds = ToolkitAuthManager.getInstance().listConnections().filterIsInstance<AwsBearerTokenConnection>().associate {
-                it.id to BearerConnectionSelectionSettings(it) { conn ->
-                    if (conn.isSono()) {
-                        loginBuilderId(Q_SCOPES)
-                    } else {
-                        // TODO: rewrite scope logic, it's short term solution only
-                        AwsRegionProvider.getInstance()[conn.region]?.let { region ->
-                            loginIdC(conn.startUrl, region, Q_SCOPES)
+            val bearerCreds = ToolkitAuthManager.getInstance().listConnections()
+                .filterIsInstance<AwsBearerTokenConnection>()
+                .associate {
+                    it.id to BearerConnectionSelectionSettings(it) { conn ->
+                        if (conn.isSono()) {
+                            loginBuilderId(Q_SCOPES)
+                        } else {
+                            // TODO: rewrite scope logic, it's short term solution only
+                            AwsRegionProvider.getInstance()[conn.region]?.let { region ->
+                                loginIdC(conn.startUrl, region, Q_SCOPES)
+                            }
                         }
                     }
                 }
-            }
 
             selectionSettings.putAll(bearerCreds)
         }
