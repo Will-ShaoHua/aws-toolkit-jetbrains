@@ -10,5 +10,4 @@ interface BearerLoginHandler {
     fun onPendingToken(provider: InteractiveBearerTokenProvider) {}
     fun onSuccess() {}
     fun onError(e: Exception) {}
-    fun onError(e: Exception, authProfile: AuthProfile) {}
 }

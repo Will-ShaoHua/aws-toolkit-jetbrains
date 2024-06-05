@@ -24,7 +24,6 @@ import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.tryOrNull
 import software.aws.toolkits.jetbrains.core.coroutines.projectCoroutineScope
-import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.LastLoginIdcInfo
 import software.aws.toolkits.jetbrains.core.credentials.Login
@@ -198,6 +197,11 @@ abstract class LoginBrowser(
             }
 
             override fun onError(e: Exception) {
+                val message = ssoErrorMessageFromException(e)
+                if (!tryHandleUserCanceledLogin(e)) {
+                    LOG.error(e) { "Failed to authenticate: message: $message" }
+                }
+
                 AwsTelemetry.loginWithBrowser(
                     project = null,
                     credentialStartUrl = url,
@@ -205,13 +209,6 @@ abstract class LoginBrowser(
                     reason = e.message,
                     credentialSourceId = CredentialSourceId.IamIdentityCenter
                 )
-            }
-
-            override fun onError(e: Exception, authProfile: AuthProfile) {
-                val message = ssoErrorMessageFromException(e)
-                if (!tryHandleUserCanceledLogin(e)) {
-                    LOG.error(e) { "Failed to authenticate: message: $message; profile: $authProfile" }
-                }
             }
         }
 

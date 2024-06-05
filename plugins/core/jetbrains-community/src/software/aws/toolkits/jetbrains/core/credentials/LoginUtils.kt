@@ -80,7 +80,7 @@ sealed interface Login {
             )
 
             val conn = try {
-                authAndUpdateConfig(project, profile, configFilesFacade, loginHandler::onPendingToken, loginHandler::onError)
+                authAndUpdateConfig(project, profile, configFilesFacade, loginHandler::onPendingToken) { _, _ -> }
             } catch (e: Exception) {
                 loginHandler.onError(e)
 
