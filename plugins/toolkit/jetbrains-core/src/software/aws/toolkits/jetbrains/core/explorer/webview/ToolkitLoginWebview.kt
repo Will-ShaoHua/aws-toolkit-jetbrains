@@ -67,7 +67,6 @@ import software.aws.toolkits.telemetry.FeatureId
 import software.aws.toolkits.telemetry.Result
 import java.awt.event.ActionListener
 import javax.swing.JButton
-import javax.swing.JComponent
 
 @Service(Service.Level.PROJECT)
 class ToolkitWebviewPanel(val project: Project, private val scope: CoroutineScope) : Disposable {
@@ -124,7 +123,7 @@ class ToolkitWebviewPanel(val project: Project, private val scope: CoroutineScop
             browser = null
         } else {
             browser = ToolkitWebviewBrowser(project, this).also {
-                webviewContainer.add(it.component())
+                webviewContainer.add(it.jcefBrowser.component)
             }
         }
 
@@ -184,8 +183,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
         when (message) {
             // TODO: handler functions could live in parent class
             is BrowserMessage.PrepareUi -> {
-                val cancellable = isTookitConnected(project)
-                this.prepareBrowser(BrowserState(FeatureId.AwsExplorer, browserCancellable = cancellable))
+                this.prepareBrowser(BrowserState(FeatureId.AwsExplorer, browserCancellable = isTookitConnected(project)))
             }
 
             is BrowserMessage.SelectConnection -> {
@@ -200,7 +198,6 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
 
             is BrowserMessage.LoginIdC -> {
                 val awsRegion = AwsRegionProvider.getInstance()[message.region] ?: error("unknown region returned from Toolkit browser")
-
                 val scopes = if (FeatureId.from(message.feature) == FeatureId.Codecatalyst) {
                     CODECATALYST_SCOPES
                 } else {
@@ -360,8 +357,6 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     override fun loadWebView(query: JBCefJSQuery) {
         jcefBrowser.loadHTML(getWebviewHTML(webScriptUri, query))
     }
-
-    fun component(): JComponent? = jcefBrowser.component
 
     companion object {
         private val LOG = getLogger<ToolkitWebviewBrowser>()

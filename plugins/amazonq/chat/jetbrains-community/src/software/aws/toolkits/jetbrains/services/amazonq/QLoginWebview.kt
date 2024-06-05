@@ -49,7 +49,6 @@ import software.aws.toolkits.telemetry.Result
 import software.aws.toolkits.telemetry.WebviewTelemetry
 import java.awt.event.ActionListener
 import javax.swing.JButton
-import javax.swing.JComponent
 
 @Service(Service.Level.PROJECT)
 class QWebviewPanel private constructor(val project: Project) : Disposable {
@@ -88,7 +87,7 @@ class QWebviewPanel private constructor(val project: Project) : Disposable {
             browser = null
         } else {
             browser = QWebviewBrowser(project, this).also {
-                webviewContainer.add(it.component())
+                webviewContainer.add(it.jcefBrowser.component)
             }
         }
     }
@@ -126,12 +125,10 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
         query.addHandler(jcefHandler)
     }
 
-    fun component(): JComponent? = jcefBrowser.component
-
     override fun handleBrowserMessage(message: BrowserMessage?) {
         when (message) {
             is BrowserMessage.PrepareUi -> {
-                this.prepareBrowser(BrowserState(FeatureId.Q, false))
+                this.prepareBrowser(BrowserState(FeatureId.Q, browserCancellable = false))
                 WebviewTelemetry.amazonqSignInOpened(
                     project,
                     reAuth = isQExpired(project)
@@ -149,9 +146,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             is BrowserMessage.LoginIdC -> {
-                val region = message.region
-                val awsRegion = AwsRegionProvider.getInstance()[region] ?: error("unknown region returned from Q browser")
-
+                val awsRegion = AwsRegionProvider.getInstance()[message.region] ?: error("unknown region returned from Q browser")
                 val scopes = Q_SCOPES
 
                 loginIdC(message.url, awsRegion, scopes)
