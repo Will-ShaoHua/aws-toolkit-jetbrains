@@ -20,7 +20,6 @@ import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.event.Level
 import software.aws.toolkits.core.region.AwsRegion
 import software.aws.toolkits.core.utils.debug
-import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.tryOrNull
 import software.aws.toolkits.jetbrains.core.coroutines.projectCoroutineScope
@@ -30,15 +29,12 @@ import software.aws.toolkits.jetbrains.core.credentials.Login
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnection
 import software.aws.toolkits.jetbrains.core.credentials.reauthConnectionIfNeeded
-import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
 import software.aws.toolkits.jetbrains.core.credentials.sso.PendingAuthorization
 import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.InteractiveBearerTokenProvider
-import software.aws.toolkits.jetbrains.core.credentials.ssoErrorMessageFromException
 import software.aws.toolkits.jetbrains.core.region.AwsRegionProvider
 import software.aws.toolkits.jetbrains.utils.pollFor
 import software.aws.toolkits.resources.message
 import software.aws.toolkits.telemetry.AwsTelemetry
-import software.aws.toolkits.telemetry.CredentialSourceId
 import software.aws.toolkits.telemetry.CredentialType
 import software.aws.toolkits.telemetry.FeatureId
 import software.aws.toolkits.telemetry.Result
@@ -94,6 +90,12 @@ abstract class AwsLoginBrowser(
 
     abstract fun handleBrowserMessage(message: BrowserMessage?)
 
+    abstract fun loginBuilderId(scopes: List<String>)
+
+    abstract fun loginIdC(url: String, region: AwsRegion, scopes: List<String>)
+
+    abstract fun loadWebView(query: JBCefJSQuery)
+
     fun prepareBrowser(state: BrowserState) {
         selectionSettings.clear()
 
@@ -116,6 +118,11 @@ abstract class AwsLoginBrowser(
         executeJS("window.ideClient.prepareUi($jsonData)")
     }
 
+    fun userCodeFromAuthorization(authorization: PendingAuthorization) = when (authorization) {
+        is PendingAuthorization.DAGAuthorization -> authorization.authorization.userCode
+        else -> ""
+    }
+
     protected fun executeJS(jsScript: String) {
         this.jcefBrowser.cefBrowser.let {
             it.executeJavaScript(jsScript, it.url, 0)
@@ -132,80 +139,19 @@ abstract class AwsLoginBrowser(
         // TODO: telemetry
     }
 
-    fun userCodeFromAuthorization(authorization: PendingAuthorization) = when (authorization) {
-        is PendingAuthorization.DAGAuthorization -> authorization.authorization.userCode
-        else -> ""
-    }
-
-    fun loginBuilderId(scopes: List<String>) {
+    protected fun loginBuilderId(scopes: List<String>, loginHandler: BearerLoginHandler) {
         loginWithBackgroundContext {
-            val h = object : BearerLoginHandler {
-                override fun onSuccess() {
-                    AwsTelemetry.loginWithBrowser(
-                        project = null,
-                        credentialStartUrl = SONO_URL,
-                        result = Result.Succeeded,
-                        credentialSourceId = CredentialSourceId.AwsId
-                    )
-                }
-
-                override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
-                    updateOnPendingToken(provider)
-                }
-
-                override fun onError(e: Exception) {
-                    tryHandleUserCanceledLogin(e)
-                    AwsTelemetry.loginWithBrowser(
-                        project = null,
-                        credentialStartUrl = SONO_URL,
-                        result = Result.Failed,
-                        reason = e.message,
-                        credentialSourceId = CredentialSourceId.AwsId
-                    )
-                }
-            }
-
-            Login.BuilderId(scopes, h).login(project)
+            Login.BuilderId(scopes, loginHandler).login(project)
         }
     }
 
-    open fun loginIdC(url: String, region: AwsRegion, scopes: List<String>) {
-        val h = object : BearerLoginHandler {
-            override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
-                updateOnPendingToken(provider)
-            }
-
-            override fun onSuccess() {
-                AwsTelemetry.loginWithBrowser(
-                    project = null,
-                    credentialStartUrl = url,
-                    result = Result.Succeeded,
-                    credentialSourceId = CredentialSourceId.IamIdentityCenter
-                )
-            }
-
-            override fun onError(e: Exception) {
-                val message = ssoErrorMessageFromException(e)
-                if (!tryHandleUserCanceledLogin(e)) {
-                    LOG.error(e) { "Failed to authenticate: message: $message" }
-                }
-
-                AwsTelemetry.loginWithBrowser(
-                    project = null,
-                    credentialStartUrl = url,
-                    result = Result.Failed,
-                    reason = e.message,
-                    credentialSourceId = CredentialSourceId.IamIdentityCenter
-                )
-            }
-        }
-
+    protected fun loginIdC(url: String, region: AwsRegion, scopes: List<String>, loginHandler: BearerLoginHandler) {
         loginWithBackgroundContext {
-            Login.IdC(url, region, scopes, h).login(project)
+            Login.IdC(url, region, scopes, loginHandler).login(project)
         }
     }
 
-    open fun loginIAM(profileName: String, accessKey: String, secretKey: String) {
+    protected fun loginIAM(profileName: String, accessKey: String, secretKey: String) {
         runInEdt {
             Login.LongLivedIAM(
                 profileName,
@@ -230,8 +176,6 @@ abstract class AwsLoginBrowser(
                 }
             }
         }
-
-    abstract fun loadWebView(query: JBCefJSQuery)
 
     protected suspend fun pollForAuthorization(provider: InteractiveBearerTokenProvider): PendingAuthorization? = pollFor {
         provider.pendingAuthorization

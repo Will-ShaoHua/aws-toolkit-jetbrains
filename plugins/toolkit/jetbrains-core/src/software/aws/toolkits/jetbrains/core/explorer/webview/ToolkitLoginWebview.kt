@@ -38,14 +38,15 @@ import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.warn
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
-import software.aws.toolkits.jetbrains.core.credentials.Login
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
+import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnection
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnectionManager
 import software.aws.toolkits.jetbrains.core.credentials.actions.SsoLogoutAction
 import software.aws.toolkits.jetbrains.core.credentials.lazyIsUnauthedBearerConnection
 import software.aws.toolkits.jetbrains.core.credentials.pinning.CodeCatalystConnection
 import software.aws.toolkits.jetbrains.core.credentials.sono.CODECATALYST_SCOPES
 import software.aws.toolkits.jetbrains.core.credentials.sono.IDENTITY_CENTER_ROLE_ACCESS_SCOPE
+import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
 import software.aws.toolkits.jetbrains.core.credentials.sono.isSono
 import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.InteractiveBearerTokenProvider
 import software.aws.toolkits.jetbrains.core.credentials.ssoErrorMessageFromException
@@ -276,19 +277,65 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
         return state
     }
 
+    override fun loginBuilderId(scopes: List<String>) {
+        val h = object : BearerLoginHandler {
+            override fun onSuccess(connection: ToolkitConnection) {
+                AwsTelemetry.loginWithBrowser(
+                    project = null,
+                    credentialStartUrl = SONO_URL,
+                    result = Result.Succeeded,
+                    credentialSourceId = CredentialSourceId.AwsId
+                )
+            }
+
+            override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
+                updateOnPendingToken(provider)
+            }
+
+            override fun onError(e: Exception) {
+                tryHandleUserCanceledLogin(e)
+                AwsTelemetry.loginWithBrowser(
+                    project = null,
+                    credentialStartUrl = SONO_URL,
+                    result = Result.Failed,
+                    reason = e.message,
+                    credentialSourceId = CredentialSourceId.AwsId
+                )
+            }
+        }
+
+        loginBuilderId(scopes, h)
+    }
+
     override fun loginIdC(url: String, region: AwsRegion, scopes: List<String>) {
         val h = object : BearerLoginHandler {
             override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
                 updateOnPendingToken(provider)
             }
 
-            override fun onSuccess() {
+            override fun onSuccess(connection: ToolkitConnection) {
                 AwsTelemetry.loginWithBrowser(
                     project = null,
                     credentialStartUrl = url,
                     result = Result.Succeeded,
                     credentialSourceId = CredentialSourceId.IamIdentityCenter
                 )
+
+                if (scopes.contains(IDENTITY_CENTER_ROLE_ACCESS_SCOPE)) {
+                    connection as AwsBearerTokenConnection
+                    val tokenProvider = connection.getConnectionSettings().tokenProvider
+
+                    runInEdt {
+                        val rolePopup = IdcRolePopup(
+                            project,
+                            region.id,
+                            validatedSsoIdentifierFromUrl(url),
+                            tokenProvider,
+                            IdcRolePopupState(), // TODO: is it correct <<?
+                        )
+                        rolePopup.show()
+                    }
+                }
             }
 
             override fun onError(e: Exception) {
@@ -307,25 +354,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
         }
 
-        loginWithBackgroundContext {
-            val connection = Login.IdC(url, region, scopes, h).login(project)
-
-            if (connection != null && scopes.contains(IDENTITY_CENTER_ROLE_ACCESS_SCOPE)) {
-                connection as AwsBearerTokenConnection
-                val tokenProvider = connection.getConnectionSettings().tokenProvider
-
-                runInEdt {
-                    val rolePopup = IdcRolePopup(
-                        project,
-                        region.id,
-                        validatedSsoIdentifierFromUrl(url),
-                        tokenProvider,
-                        IdcRolePopupState(), // TODO: is it correct <<?
-                    )
-                    rolePopup.show()
-                }
-            }
-        }
+        loginIdC(url, region, scopes, h)
     }
 
     override fun loadWebView(query: JBCefJSQuery) {
