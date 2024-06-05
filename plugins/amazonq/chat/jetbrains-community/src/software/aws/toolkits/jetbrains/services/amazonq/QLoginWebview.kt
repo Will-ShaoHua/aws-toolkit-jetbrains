@@ -6,7 +6,6 @@ package software.aws.toolkits.jetbrains.services.amazonq
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -22,18 +21,16 @@ import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.warn
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
-import software.aws.toolkits.jetbrains.core.credentials.ManagedBearerSsoConnection
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnectionManager
 import software.aws.toolkits.jetbrains.core.credentials.actions.SsoLogoutAction
 import software.aws.toolkits.jetbrains.core.credentials.pinning.QConnection
-import software.aws.toolkits.jetbrains.core.credentials.reauthConnectionIfNeeded
 import software.aws.toolkits.jetbrains.core.credentials.sono.Q_SCOPES
 import software.aws.toolkits.jetbrains.core.credentials.sono.isSono
 import software.aws.toolkits.jetbrains.core.region.AwsRegionProvider
 import software.aws.toolkits.jetbrains.core.webview.BrowserMessage
 import software.aws.toolkits.jetbrains.core.webview.BrowserState
-import software.aws.toolkits.jetbrains.core.webview.LoginBrowser
+import software.aws.toolkits.jetbrains.core.webview.AwsLoginBrowser
 import software.aws.toolkits.jetbrains.core.webview.WebviewResourceHandlerFactory
 import software.aws.toolkits.jetbrains.isDeveloperMode
 import software.aws.toolkits.jetbrains.services.amazonq.util.createBrowser
@@ -95,7 +92,7 @@ class QWebviewPanel private constructor(val project: Project) : Disposable {
     }
 }
 
-class QWebviewBrowser(val project: Project, private val parentDisposable: Disposable) : LoginBrowser(
+class QWebviewBrowser(val project: Project, private val parentDisposable: Disposable) : AwsLoginBrowser(
     project,
     QWebviewBrowser.DOMAIN,
     QWebviewBrowser.WEB_SCRIPT_URI
@@ -171,13 +168,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             is BrowserMessage.Reauth -> {
-                ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(QConnection.getInstance())?.let { conn ->
-                    if (conn is ManagedBearerSsoConnection) {
-                        ApplicationManager.getApplication().executeOnPooledThread {
-                            reauthConnectionIfNeeded(project, conn, ::updateOnPendingToken)
-                        }
-                    }
-                }
+                reauth(ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(QConnection.getInstance()))
             }
 
             else -> {

@@ -54,7 +54,7 @@ data class BrowserState(
     val existingConnections: List<AwsBearerTokenConnection> = emptyList()
 )
 
-abstract class LoginBrowser(
+abstract class AwsLoginBrowser(
     private val project: Project,
     val domain: String,
     val webScriptUri: String
@@ -264,7 +264,7 @@ abstract class LoginBrowser(
     }
 
     companion object {
-        private val LOG = getLogger<LoginBrowser>()
+        private val LOG = getLogger<AwsLoginBrowser>()
         fun getWebviewHTML(webScriptUri: String, query: JBCefJSQuery): String {
             val colorMode = if (JBColor.isBright()) "jb-light" else "jb-dark"
             val postMessageToJavaJsCode = query.inject("JSON.stringify(message)")
