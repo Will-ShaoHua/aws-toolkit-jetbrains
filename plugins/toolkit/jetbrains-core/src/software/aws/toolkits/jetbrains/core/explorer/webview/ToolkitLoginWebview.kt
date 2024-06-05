@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import migration.software.aws.toolkits.jetbrains.core.credentials.CredentialManager
 import org.cef.CefApp
 import software.aws.toolkits.core.credentials.validatedSsoIdentifierFromUrl
@@ -37,6 +38,7 @@ import software.aws.toolkits.core.region.AwsRegion
 import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.warn
+import software.aws.toolkits.jetbrains.core.coroutines.projectCoroutineScope
 import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.Login
@@ -48,6 +50,8 @@ import software.aws.toolkits.jetbrains.core.credentials.pinning.CodeCatalystConn
 import software.aws.toolkits.jetbrains.core.credentials.sono.CODECATALYST_SCOPES
 import software.aws.toolkits.jetbrains.core.credentials.sono.IDENTITY_CENTER_ROLE_ACCESS_SCOPE
 import software.aws.toolkits.jetbrains.core.credentials.sono.isSono
+import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.InteractiveBearerTokenProvider
+import software.aws.toolkits.jetbrains.core.credentials.ssoErrorMessageFromException
 import software.aws.toolkits.jetbrains.core.explorer.showExplorerTree
 import software.aws.toolkits.jetbrains.core.gettingstarted.IdcRolePopup
 import software.aws.toolkits.jetbrains.core.gettingstarted.IdcRolePopupState
@@ -55,10 +59,14 @@ import software.aws.toolkits.jetbrains.core.region.AwsRegionProvider
 import software.aws.toolkits.jetbrains.core.webview.BrowserMessage
 import software.aws.toolkits.jetbrains.core.webview.BrowserState
 import software.aws.toolkits.jetbrains.core.webview.LoginBrowser
+import software.aws.toolkits.jetbrains.core.webview.BearerLoginHandler
 import software.aws.toolkits.jetbrains.core.webview.WebviewResourceHandlerFactory
 import software.aws.toolkits.jetbrains.isDeveloperMode
 import software.aws.toolkits.jetbrains.utils.isTookitConnected
+import software.aws.toolkits.telemetry.AwsTelemetry
+import software.aws.toolkits.telemetry.CredentialSourceId
 import software.aws.toolkits.telemetry.FeatureId
+import software.aws.toolkits.telemetry.Result
 import java.awt.event.ActionListener
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -272,14 +280,38 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     }
 
     override fun loginIdC(url: String, region: AwsRegion, scopes: List<String>) {
-        val onIdCError: (Exception, AuthProfile) -> Unit = { e, profile ->
-            // TODO: telemetry
+        val h = object : BearerLoginHandler {
+            override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
+                projectCoroutineScope(project).launch {
+                    val authorization = pollForAuthorization(provider)
+                    if (authorization != null) {
+                        executeJS("window.ideClient.updateAuthorization(\"${userCodeFromAuthorization(authorization)}\")")
+                        currentAuthorization = authorization
+                    }
+                }
+            }
+
+            override fun onSuccess() {
+                AwsTelemetry.loginWithBrowser(
+                    project = null,
+                    credentialStartUrl = url,
+                    result = Result.Succeeded,
+                    credentialSourceId = CredentialSourceId.IamIdentityCenter
+                )
+            }
+
+            override fun onError(e: Exception, authProfile: AuthProfile) {
+                val message = ssoErrorMessageFromException(e)
+                if (!tryHandleUserCanceledLogin(e)) {
+                    LOG.error(e) { "Failed to authenticate: message: $message; profile: $authProfile" }
+                }
+
+            }
         }
 
-        val login = Login.IdC(url, region, scopes, onPendingToken, onIdCError)
-
         loginWithBackgroundContext {
-            val connection = login.login(project)
+            val connection = Login.IdC(url, region, scopes, h).login(project)
+
             if (connection != null && scopes.contains(IDENTITY_CENTER_ROLE_ACCESS_SCOPE)) {
                 connection as AwsBearerTokenConnection
                 val tokenProvider = connection.getConnectionSettings().tokenProvider
