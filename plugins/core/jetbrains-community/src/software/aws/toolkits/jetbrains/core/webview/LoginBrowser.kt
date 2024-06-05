@@ -61,7 +61,7 @@ abstract class LoginBrowser(
 ) {
     abstract val jcefBrowser: JBCefBrowserBase
 
-    protected val handler = Function<String, JBCefJSQuery.Response> {
+    protected val jcefHandler = Function<String, JBCefJSQuery.Response> {
         val obj = LOG.tryOrNull("Unable deserialize login browser message: $it", Level.WARN) {
             objectMapper.readValue<BrowserMessage>(it)
         }
@@ -77,7 +77,7 @@ abstract class LoginBrowser(
 
     protected val selectionSettings = mutableMapOf<String, BearerConnectionSelectionSettings>()
 
-    protected val onPendingToken: (InteractiveBearerTokenProvider) -> Unit = { provider ->
+    protected fun updateOnPendingToken(provider: InteractiveBearerTokenProvider) {
         projectCoroutineScope(project).launch {
             val authorization = pollForAuthorization(provider)
             if (authorization != null) {
@@ -150,13 +150,7 @@ abstract class LoginBrowser(
                 }
 
                 override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
-                    projectCoroutineScope(project).launch {
-                        val authorization = pollForAuthorization(provider)
-                        if (authorization != null) {
-                            executeJS("window.ideClient.updateAuthorization(\"${userCodeFromAuthorization(authorization)}\")")
-                            currentAuthorization = authorization
-                        }
-                    }
+                    updateOnPendingToken(provider)
                 }
 
                 override fun onError(e: Exception) {
@@ -178,13 +172,7 @@ abstract class LoginBrowser(
     open fun loginIdC(url: String, region: AwsRegion, scopes: List<String>) {
         val h = object : BearerLoginHandler {
             override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
-                projectCoroutineScope(project).launch {
-                    val authorization = pollForAuthorization(provider)
-                    if (authorization != null) {
-                        executeJS("window.ideClient.updateAuthorization(\"${userCodeFromAuthorization(authorization)}\")")
-                        currentAuthorization = authorization
-                    }
-                }
+                updateOnPendingToken(provider)
             }
 
             override fun onSuccess() {
@@ -252,7 +240,7 @@ abstract class LoginBrowser(
     protected fun reauth(connection: ToolkitConnection?) {
         if (connection is AwsBearerTokenConnection) {
             loginWithBackgroundContext {
-                reauthConnectionIfNeeded(project, connection, onPendingToken)
+                reauthConnectionIfNeeded(project, connection, ::updateOnPendingToken)
                 AwsTelemetry.loginWithBrowser(
                     project = null,
                     isReAuth = true,

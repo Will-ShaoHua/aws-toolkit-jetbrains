@@ -117,7 +117,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
 
         loadWebView(query)
 
-        query.addHandler(handler)
+        query.addHandler(jcefHandler)
     }
 
     fun component(): JComponent? = jcefBrowser.component
@@ -174,7 +174,7 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
                 ToolkitConnectionManager.getInstance(project).activeConnectionForFeature(QConnection.getInstance())?.let { conn ->
                     if (conn is ManagedBearerSsoConnection) {
                         ApplicationManager.getApplication().executeOnPooledThread {
-                            reauthConnectionIfNeeded(project, conn, onPendingToken)
+                            reauthConnectionIfNeeded(project, conn, ::updateOnPendingToken)
                         }
                     }
                 }

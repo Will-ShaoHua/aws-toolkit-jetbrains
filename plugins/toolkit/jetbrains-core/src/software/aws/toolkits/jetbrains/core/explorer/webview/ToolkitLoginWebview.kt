@@ -39,7 +39,6 @@ import software.aws.toolkits.core.utils.error
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.warn
 import software.aws.toolkits.jetbrains.core.coroutines.projectCoroutineScope
-import software.aws.toolkits.jetbrains.core.credentials.AuthProfile
 import software.aws.toolkits.jetbrains.core.credentials.AwsBearerTokenConnection
 import software.aws.toolkits.jetbrains.core.credentials.Login
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
@@ -179,7 +178,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
 
         loadWebView(query)
 
-        query.addHandler(handler)
+        query.addHandler(jcefHandler)
     }
 
     override fun handleBrowserMessage(message: BrowserMessage?) {
@@ -282,13 +281,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     override fun loginIdC(url: String, region: AwsRegion, scopes: List<String>) {
         val h = object : BearerLoginHandler {
             override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
-                projectCoroutineScope(project).launch {
-                    val authorization = pollForAuthorization(provider)
-                    if (authorization != null) {
-                        executeJS("window.ideClient.updateAuthorization(\"${userCodeFromAuthorization(authorization)}\")")
-                        currentAuthorization = authorization
-                    }
-                }
+                updateOnPendingToken(provider)
             }
 
             override fun onSuccess() {
@@ -300,12 +293,19 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
                 )
             }
 
-            override fun onError(e: Exception, authProfile: AuthProfile) {
+            override fun onError(e: Exception) {
                 val message = ssoErrorMessageFromException(e)
                 if (!tryHandleUserCanceledLogin(e)) {
-                    LOG.error(e) { "Failed to authenticate: message: $message; profile: $authProfile" }
+                    LOG.error(e) { "Failed to authenticate: message: $message" }
                 }
 
+                AwsTelemetry.loginWithBrowser(
+                    project = null,
+                    credentialStartUrl = url,
+                    result = Result.Failed,
+                    reason = e.message,
+                    credentialSourceId = CredentialSourceId.IamIdentityCenter
+                )
             }
         }
 
