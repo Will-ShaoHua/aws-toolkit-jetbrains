@@ -31,6 +31,7 @@ import software.aws.toolkits.jetbrains.core.credentials.Login
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitAuthManager
 import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnection
 import software.aws.toolkits.jetbrains.core.credentials.reauthConnectionIfNeeded
+import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
 import software.aws.toolkits.jetbrains.core.credentials.sso.PendingAuthorization
 import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.InteractiveBearerTokenProvider
 import software.aws.toolkits.jetbrains.core.credentials.ssoErrorMessageFromException
@@ -140,6 +141,15 @@ abstract class LoginBrowser(
     fun loginBuilderId(scopes: List<String>) {
         loginWithBackgroundContext {
             val h = object : BearerLoginHandler {
+                override fun onSuccess() {
+                    AwsTelemetry.loginWithBrowser(
+                        project = null,
+                        credentialStartUrl = SONO_URL,
+                        result = Result.Succeeded,
+                        credentialSourceId = CredentialSourceId.AwsId
+                    )
+                }
+
                 override fun onPendingToken(provider: InteractiveBearerTokenProvider) {
                     projectCoroutineScope(project).launch {
                         val authorization = pollForAuthorization(provider)
@@ -152,6 +162,13 @@ abstract class LoginBrowser(
 
                 override fun onError(e: Exception) {
                     tryHandleUserCanceledLogin(e)
+                    AwsTelemetry.loginWithBrowser(
+                        project = null,
+                        credentialStartUrl = SONO_URL,
+                        result = Result.Failed,
+                        reason = e.message,
+                        credentialSourceId = CredentialSourceId.AwsId
+                    )
                 }
             }
 
@@ -176,6 +193,16 @@ abstract class LoginBrowser(
                     project = null,
                     credentialStartUrl = url,
                     result = Result.Succeeded,
+                    credentialSourceId = CredentialSourceId.IamIdentityCenter
+                )
+            }
+
+            override fun onError(e: Exception) {
+                AwsTelemetry.loginWithBrowser(
+                    project = null,
+                    credentialStartUrl = url,
+                    result = Result.Failed,
+                    reason = e.message,
                     credentialSourceId = CredentialSourceId.IamIdentityCenter
                 )
             }

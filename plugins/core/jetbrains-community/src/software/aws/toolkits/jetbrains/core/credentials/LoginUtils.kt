@@ -46,22 +46,9 @@ sealed interface Login {
         override fun login(project: Project): ToolkitConnection? = try {
             loginSso(project, SONO_URL, SONO_REGION, scopes, loginHandler::onPendingToken).also {
                 loginHandler.onSuccess()
-                AwsTelemetry.loginWithBrowser(
-                    project = null,
-                    credentialStartUrl = SONO_URL,
-                    result = Result.Succeeded,
-                    credentialSourceId = CredentialSourceId.AwsId
-                )
             }
         } catch (e: Exception) {
             loginHandler.onError(e)
-            AwsTelemetry.loginWithBrowser(
-                project = null,
-                credentialStartUrl = SONO_URL,
-                result = Result.Failed,
-                reason = e.message,
-                credentialSourceId = CredentialSourceId.AwsId
-            )
 
             null
         }
@@ -96,13 +83,6 @@ sealed interface Login {
                 authAndUpdateConfig(project, profile, configFilesFacade, loginHandler::onPendingToken, loginHandler::onError)
             } catch (e: Exception) {
                 loginHandler.onError(e)
-                AwsTelemetry.loginWithBrowser(
-                    project = null,
-                    credentialStartUrl = startUrl,
-                    result = Result.Failed,
-                    reason = e.message,
-                    credentialSourceId = CredentialSourceId.IamIdentityCenter
-                )
 
                 return null
             }
@@ -111,12 +91,6 @@ sealed interface Login {
 
             return conn.also {
                 loginHandler.onSuccess()
-                AwsTelemetry.loginWithBrowser(
-                    project = null,
-                    credentialStartUrl = startUrl,
-                    result = Result.Succeeded,
-                    credentialSourceId = CredentialSourceId.IamIdentityCenter
-                )
             }
         }
     }
