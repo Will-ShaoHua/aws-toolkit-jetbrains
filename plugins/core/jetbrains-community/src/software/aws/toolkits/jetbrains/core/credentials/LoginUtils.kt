@@ -45,7 +45,7 @@ sealed interface Login {
 
         override fun login(project: Project): ToolkitConnection? = try {
             loginSso(project, SONO_URL, SONO_REGION, scopes, loginHandler::onPendingToken).also {
-                loginHandler.onSuccess()
+                loginHandler.onSuccess(it)
             }
         } catch (e: Exception) {
             loginHandler.onError(e)
@@ -90,7 +90,7 @@ sealed interface Login {
             ToolkitConnectionManager.getInstance(project).switchConnection(conn)
 
             return conn.also {
-                loginHandler.onSuccess()
+                loginHandler.onSuccess(it)
             }
         }
     }
