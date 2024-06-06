@@ -40,7 +40,6 @@ import software.aws.toolkits.jetbrains.core.webview.BrowserState
 import software.aws.toolkits.jetbrains.core.webview.WebviewResourceHandlerFactory
 import software.aws.toolkits.jetbrains.isDeveloperMode
 import software.aws.toolkits.jetbrains.services.amazonq.util.createBrowser
-import software.aws.toolkits.jetbrains.utils.isQConnected
 import software.aws.toolkits.jetbrains.utils.isQExpired
 import software.aws.toolkits.telemetry.AwsTelemetry
 import software.aws.toolkits.telemetry.CredentialSourceId
@@ -136,8 +135,15 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
             }
 
             is BrowserMessage.SelectConnection -> {
-                this.selectionSettings[message.connectionId]?.let { settings ->
-                    settings.onChange(settings.currentSelection)
+                selectionSettings.firstOrNull { it.id == message.connectionId }?.let { conn ->
+                    if (conn.isSono()) {
+                        loginBuilderId(Q_SCOPES)
+                    } else {
+                        // TODO: rewrite scope logic, it's short term solution only
+                        AwsRegionProvider.getInstance()[conn.region]?.let { region ->
+                            loginIdC(conn.startUrl, region, Q_SCOPES)
+                        }
+                    }
                 }
             }
 
@@ -182,25 +188,11 @@ class QWebviewBrowser(val project: Project, private val parentDisposable: Dispos
     }
 
     override fun customize(state: BrowserState): BrowserState {
-        if (!isQConnected(project)) {
-            // existing connections
-            val bearerCreds = ToolkitAuthManager.getInstance().listConnections()
-                .filterIsInstance<AwsBearerTokenConnection>()
-                .associate {
-                    it.id to BearerConnectionSelectionSettings(it) { conn ->
-                        if (conn.isSono()) {
-                            loginBuilderId(Q_SCOPES)
-                        } else {
-                            // TODO: rewrite scope logic, it's short term solution only
-                            AwsRegionProvider.getInstance()[conn.region]?.let { region ->
-                                loginIdC(conn.startUrl, region, Q_SCOPES)
-                            }
-                        }
-                    }
-                }
+        state.existingConnections = ToolkitAuthManager.getInstance().listConnections()
+            .filterIsInstance<AwsBearerTokenConnection>()
 
-            selectionSettings.putAll(bearerCreds)
-        }
+        selectionSettings = ToolkitAuthManager.getInstance().listConnections()
+            .filterIsInstance<AwsBearerTokenConnection>()
 
         state.stage = if (isQExpired(project)) {
             "REAUTH"

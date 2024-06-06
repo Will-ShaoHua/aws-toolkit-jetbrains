@@ -47,7 +47,7 @@ data class BrowserState(
     val requireReauth: Boolean = false,
     var stage: String = "START",
     val lastLoginIdcInfo: LastLoginIdcInfo = ToolkitAuthManager.getInstance().getLastLoginIdcInfo(),
-    val existingConnections: List<AwsBearerTokenConnection> = emptyList()
+    var existingConnections: List<AwsBearerTokenConnection> = emptyList()
 )
 
 abstract class AwsLoginBrowser(
@@ -69,9 +69,7 @@ abstract class AwsLoginBrowser(
 
     protected var currentAuthorization: PendingAuthorization? = null
 
-    protected data class BearerConnectionSelectionSettings(val currentSelection: AwsBearerTokenConnection, val onChange: (AwsBearerTokenConnection) -> Unit)
-
-    protected val selectionSettings = mutableMapOf<String, BearerConnectionSelectionSettings>()
+    protected var selectionSettings: List<AwsBearerTokenConnection> = listOf()
 
     protected fun updateOnPendingToken(provider: InteractiveBearerTokenProvider) {
         projectCoroutineScope(project).launch {
@@ -97,8 +95,6 @@ abstract class AwsLoginBrowser(
     abstract fun loadWebView(query: JBCefJSQuery)
 
     fun prepareBrowser(state: BrowserState) {
-        selectionSettings.clear()
-
         customize(state)
 
         val jsonData = """
@@ -112,7 +108,7 @@ abstract class AwsLoginBrowser(
                 },
                 cancellable: ${state.browserCancellable},
                 feature: '${state.feature}',
-                existConnections: ${objectMapper.writeValueAsString(selectionSettings.values.map { it.currentSelection }.toList())}
+                existConnections: ${objectMapper.writeValueAsString(state.existingConnections)}
             }
         """.trimIndent()
         executeJS("window.ideClient.prepareUi($jsonData)")
@@ -123,7 +119,7 @@ abstract class AwsLoginBrowser(
         else -> ""
     }
 
-    protected fun executeJS(jsScript: String) {
+    private fun executeJS(jsScript: String) {
         this.jcefBrowser.cefBrowser.let {
             it.executeJavaScript(jsScript, it.url, 0)
         }

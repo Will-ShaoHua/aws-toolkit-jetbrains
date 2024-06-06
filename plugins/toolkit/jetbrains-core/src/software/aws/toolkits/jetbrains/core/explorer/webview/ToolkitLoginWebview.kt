@@ -187,8 +187,15 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.SelectConnection -> {
-                this.selectionSettings[message.connectionId]?.let { settings ->
-                    settings.onChange(settings.currentSelection)
+                selectionSettings.firstOrNull { it.id == message.connectionId }?.let { conn ->
+                    if (conn.isSono()) {
+                        loginBuilderId(CODECATALYST_SCOPES)
+                    } else {
+                        // TODO: rewrite scope logic, it's short term solution only
+                        AwsRegionProvider.getInstance()[conn.region]?.let { region ->
+                            loginIdC(conn.startUrl, region, listOf(IDENTITY_CENTER_ROLE_ACCESS_SCOPE))
+                        }
+                    }
                 }
             }
 
@@ -243,25 +250,12 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     }
 
     override fun customize(state: BrowserState): BrowserState {
-        if (!isTookitConnected(project)) {
-            // existing connections
-            val bearerCreds = ToolkitAuthManager.getInstance().listConnections()
-                .filterIsInstance<AwsBearerTokenConnection>()
-                .associate {
-                    it.id to BearerConnectionSelectionSettings(it) { conn ->
-                        if (conn.isSono()) {
-                            loginBuilderId(CODECATALYST_SCOPES)
-                        } else {
-                            // TODO: rewrite scope logic, it's short term solution only
-                            AwsRegionProvider.getInstance()[conn.region]?.let { region ->
-                                loginIdC(conn.startUrl, region, listOf(IDENTITY_CENTER_ROLE_ACCESS_SCOPE))
-                            }
-                        }
-                    }
-                }
+        state.existingConnections = ToolkitAuthManager.getInstance().listConnections()
+            .filterIsInstance<AwsBearerTokenConnection>()
 
-            selectionSettings.putAll(bearerCreds)
-        }
+        selectionSettings = ToolkitAuthManager.getInstance().listConnections()
+            .filterIsInstance<AwsBearerTokenConnection>()
+
 
         state.stage = if (state.feature == FeatureId.Codecatalyst) {
             "SSO_FORM"
