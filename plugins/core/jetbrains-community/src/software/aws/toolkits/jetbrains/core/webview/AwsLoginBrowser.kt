@@ -69,7 +69,7 @@ abstract class AwsLoginBrowser(
 
     protected var currentAuthorization: PendingAuthorization? = null
 
-    protected var selectionSettings: List<AwsBearerTokenConnection> = listOf()
+    protected lateinit var myState: BrowserState
 
     protected fun updateOnPendingToken(provider: InteractiveBearerTokenProvider) {
         projectCoroutineScope(project).launch {
@@ -95,6 +95,7 @@ abstract class AwsLoginBrowser(
     abstract fun loadWebView(query: JBCefJSQuery)
 
     fun prepareBrowser(state: BrowserState) {
+        myState = state
         customize(state)
 
         val jsonData = """

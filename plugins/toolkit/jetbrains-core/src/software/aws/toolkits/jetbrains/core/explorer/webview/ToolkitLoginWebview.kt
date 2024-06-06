@@ -187,7 +187,7 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
             }
 
             is BrowserMessage.SelectConnection -> {
-                selectionSettings.firstOrNull { it.id == message.connectionId }?.let { conn ->
+                myState.existingConnections.firstOrNull { it.id == message.connectionId }?.let { conn ->
                     if (conn.isSono()) {
                         loginBuilderId(CODECATALYST_SCOPES)
                     } else {
@@ -252,10 +252,6 @@ class ToolkitWebviewBrowser(val project: Project, private val parentDisposable: 
     override fun customize(state: BrowserState): BrowserState {
         state.existingConnections = ToolkitAuthManager.getInstance().listConnections()
             .filterIsInstance<AwsBearerTokenConnection>()
-
-        selectionSettings = ToolkitAuthManager.getInstance().listConnections()
-            .filterIsInstance<AwsBearerTokenConnection>()
-
 
         state.stage = if (state.feature == FeatureId.Codecatalyst) {
             "SSO_FORM"
