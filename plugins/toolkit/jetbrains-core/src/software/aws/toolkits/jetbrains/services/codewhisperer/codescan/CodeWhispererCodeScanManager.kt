@@ -230,9 +230,13 @@ class CodeWhispererCodeScanManager(val project: Project) {
                     FileEditorManager.getInstance(project).selectedEditor?.file
                 }
             val codeScanSessionConfig = CodeScanSessionConfig.create(file, project, scope)
-            language = codeScanSessionConfig.getSelectedFile()?.programmingLanguage() ?: CodeWhispererUnknownLanguage.INSTANCE
+            val selectedFile = codeScanSessionConfig.getSelectedFile()
+            language = selectedFile?.programmingLanguage() ?: CodeWhispererUnknownLanguage.INSTANCE
             if (scope == CodeWhispererConstants.CodeAnalysisScope.FILE &&
-                !language.isAutoFileScanSupported()
+                (
+                    selectedFile == null || !language.isAutoFileScanSupported() ||
+                        runReadAction { (codeScanSessionConfig.fileIndex.isInLibrarySource(selectedFile)) }
+                    )
             ) {
                 LOG.debug { "Language is unknown or plaintext, skipping code scan." }
                 codeScanStatus = Result.Cancelled
@@ -323,16 +327,29 @@ class CodeWhispererCodeScanManager(val project: Project) {
         return errorMessage
     }
 
+    private fun getCodeScanExceptionMessage(e: CodeWhispererCodeScanException): String? {
+        val message = e.message
+        return when {
+            message.isNullOrBlank() -> null
+            message == message("codewhisperer.codescan.invalid_source_zip_telemetry") -> {
+                message("codewhisperer.codescan.run_scan_error")
+            }
+            else -> message
+        }
+    }
+
+    private fun getCodeScanServerExceptionMessage(e: CodeWhispererCodeScanServerException): String? =
+        e.message?.takeIf { it.startsWith("UploadArtifactToS3Exception:") }
+            ?.let { message("codewhisperer.codescan.upload_to_s3_failed") }
+
     fun handleException(coroutineContext: CoroutineContext, e: Exception, scope: CodeWhispererConstants.CodeAnalysisScope): String {
         val errorMessage = when (e) {
             is CodeWhispererException -> e.awsErrorDetails().errorMessage() ?: message("codewhisperer.codescan.run_scan_error")
-            is CodeWhispererCodeScanException -> when (e.message) {
-                message("codewhisperer.codescan.invalid_source_zip_telemetry") -> message("codewhisperer.codescan.run_scan_error")
-                else -> e.message
-            }
-            is UploadCodeScanException -> message("codewhisperer.codescan.upload_to_s3_failed")
+            is CodeWhispererCodeScanException -> getCodeScanExceptionMessage(e)
+            is CodeWhispererCodeScanServerException -> getCodeScanServerExceptionMessage(e)
             is WaiterTimeoutException, is TimeoutCancellationException -> message("codewhisperer.codescan.scan_timed_out")
             is CancellationException -> message("codewhisperer.codescan.cancelled_by_user_exception")
+            is IllegalStateException -> message("codewhisperer.codescan.cannot_read_file")
             else -> null
         } ?: message("codewhisperer.codescan.run_scan_error")
 
@@ -372,10 +389,17 @@ class CodeWhispererCodeScanManager(val project: Project) {
                 message("codewhisperer.codescan.file_too_large") -> message("codewhisperer.codescan.file_too_large_telemetry")
                 else -> e.message
             }
-            is UploadCodeScanException -> e.message
+            is CodeWhispererCodeScanServerException -> e.message
             is WaiterTimeoutException, is TimeoutCancellationException -> message("codewhisperer.codescan.scan_timed_out")
             is CancellationException -> message("codewhisperer.codescan.cancelled_by_user_exception")
-            else -> e.message
+            else -> when {
+                /**
+                 * Error message has text with user details(like requestId) which is specific so sending a custom error message to calculate the occurence of this event.
+                 */
+                e.message?.startsWith("Too many requests, please wait before trying again.") == true ->
+                    "Too many requests, please wait before trying again."
+                else -> e.message
+            }
         } ?: message("codewhisperer.codescan.run_scan_error_telemetry")
 
         return telemetryErrorMessage
@@ -718,7 +742,7 @@ data class CodeWhispererCodeScanIssue(
 
     val document = runReadAction {
         FileDocumentManager.getInstance().getDocument(file)
-            ?: cannotFindFile(file.path)
+            ?: cannotFindFile("Unable to find file", file.path)
     }
 
     /**
