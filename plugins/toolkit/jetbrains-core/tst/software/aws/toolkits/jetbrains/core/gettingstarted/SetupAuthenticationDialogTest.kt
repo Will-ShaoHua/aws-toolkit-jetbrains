@@ -12,11 +12,12 @@ import com.intellij.testFramework.replaceService
 import com.intellij.testFramework.runInEdtAndWait
 import io.mockk.every
 import io.mockk.junit5.MockKExtension
-import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.unmockkAll
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -44,7 +45,6 @@ import software.aws.toolkits.jetbrains.core.credentials.authAndUpdateConfig
 import software.aws.toolkits.jetbrains.core.credentials.loginSso
 import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_REGION
 import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
-import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.BearerTokenProvider
 import software.aws.toolkits.jetbrains.core.region.MockRegionProviderExtension
 import software.aws.toolkits.resources.message
 import software.aws.toolkits.telemetry.FeatureId
@@ -72,13 +72,9 @@ class SetupAuthenticationDialogTest {
 
     }
 
-    @Test
-    fun `t`() {
-        val tokenProvider = mockk<BearerTokenProvider> {
-            justRun { reauthenticate() }
-        }
-
-        tokenProvider.reauthenticate()
+    @AfterEach
+    fun cleaup() {
+        unmockkAll()
     }
 
     @Test
