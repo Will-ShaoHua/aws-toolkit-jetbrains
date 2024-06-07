@@ -55,7 +55,7 @@ class BrowserMessageTest {
             """
             {
                 "command": "selectConnection",
-                "conectionId": "foo"
+                "connectionId": "foo"
             }
             """
         ).isEqualTo(BrowserMessage.SelectConnection("foo"))
