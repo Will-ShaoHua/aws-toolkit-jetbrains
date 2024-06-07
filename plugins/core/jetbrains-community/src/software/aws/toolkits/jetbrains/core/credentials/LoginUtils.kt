@@ -58,10 +58,10 @@ sealed interface Login {
         val startUrl: String,
         val region: AwsRegion,
         val scopes: List<String>,
-        val loginHandler: BearerLoginHandler
+        val loginHandler: BearerLoginHandler,
+        private val configFilesFacade: ConfigFilesFacade = DefaultConfigFilesFacade()
     ) : Login {
         override val id: CredentialSourceId = CredentialSourceId.IamIdentityCenter
-        private val configFilesFacade = DefaultConfigFilesFacade()
 
         override fun login(project: Project): ToolkitConnection? {
             // we have this check here so we blow up early if user has an invalid config file
@@ -98,10 +98,10 @@ sealed interface Login {
     data class LongLivedIAM(
         val profileName: String,
         val accessKey: String,
-        val secretKey: String
+        val secretKey: String,
+        private val configFilesFacade: ConfigFilesFacade = DefaultConfigFilesFacade()
     ) : Login {
         override val id: CredentialSourceId = CredentialSourceId.SharedCredentials
-        private val configFilesFacade = DefaultConfigFilesFacade()
 
         override fun login(project: Project): ToolkitConnection? {
             val existingProfiles = try {
