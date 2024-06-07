@@ -3,16 +3,21 @@
 
 package software.aws.toolkits.jetbrains.core.gettingstarted
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.ui.TestDialog
 import com.intellij.openapi.ui.TestDialogManager
 import com.intellij.testFramework.ProjectExtension
+import com.intellij.testFramework.junit5.TestDisposable
+import com.intellij.testFramework.replaceService
 import com.intellij.testFramework.runInEdtAndWait
 import io.mockk.every
 import io.mockk.junit5.MockKExtension
+import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
@@ -21,6 +26,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import software.amazon.awssdk.profiles.Profile
+import software.amazon.awssdk.services.sso.SsoClient
+import software.amazon.awssdk.services.ssooidc.SsoOidcClient
 import software.amazon.awssdk.services.sts.StsClient
 import software.amazon.awssdk.services.sts.model.GetCallerIdentityRequest
 import software.amazon.awssdk.services.sts.model.GetCallerIdentityResponse
@@ -30,11 +37,14 @@ import software.aws.toolkits.core.region.Service
 import software.aws.toolkits.core.utils.test.aString
 import software.aws.toolkits.jetbrains.core.MockClientManagerExtension
 import software.aws.toolkits.jetbrains.core.credentials.ConfigFilesFacade
+import software.aws.toolkits.jetbrains.core.credentials.LegacyManagedBearerSsoConnection
+import software.aws.toolkits.jetbrains.core.credentials.ToolkitConnectionManager
 import software.aws.toolkits.jetbrains.core.credentials.UserConfigSsoSessionProfile
 import software.aws.toolkits.jetbrains.core.credentials.authAndUpdateConfig
 import software.aws.toolkits.jetbrains.core.credentials.loginSso
 import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_REGION
 import software.aws.toolkits.jetbrains.core.credentials.sono.SONO_URL
+import software.aws.toolkits.jetbrains.core.credentials.sso.bearer.BearerTokenProvider
 import software.aws.toolkits.jetbrains.core.region.MockRegionProviderExtension
 import software.aws.toolkits.resources.message
 import software.aws.toolkits.telemetry.FeatureId
@@ -55,9 +65,26 @@ class SetupAuthenticationDialogTest {
     @RegisterExtension
     val mockRegionProvider = MockRegionProviderExtension()
 
+    @BeforeEach
+    fun setup() {
+        mockClientManager.create<SsoOidcClient>()
+        mockClientManager.create<SsoClient>()
+
+    }
+
     @Test
-    fun `login to IdC tab`() {
+    fun `t`() {
+        val tokenProvider = mockk<BearerTokenProvider> {
+            justRun { reauthenticate() }
+        }
+
+        tokenProvider.reauthenticate()
+    }
+
+    @Test
+    fun `login to IdC tab`(@TestDisposable disposable: Disposable) {
         mockkStatic(::authAndUpdateConfig)
+        projectExtension.project.replaceService(ToolkitConnectionManager::class.java, mockk<ToolkitConnectionManager>(relaxed = true), disposable)
 
         val startUrl = aString()
         val region = mockRegionProvider.createAwsRegion()
@@ -79,6 +106,17 @@ class SetupAuthenticationDialogTest {
                 this.region = region
             }
         }
+
+        val fakeConnection = LegacyManagedBearerSsoConnection(startUrl, region.id, scopes)
+        every {
+            authAndUpdateConfig(
+                projectExtension.project,
+                UserConfigSsoSessionProfile("", region.id, startUrl, scopes),
+                configFacade,
+                any(),
+                any()
+            )
+        } returns fakeConnection
 
         runInEdtAndWait {
             SetupAuthenticationDialog(
@@ -109,8 +147,9 @@ class SetupAuthenticationDialogTest {
     }
 
     @Test
-    fun `login to IdC tab and request role`() {
+    fun `login to IdC tab and request role`(@TestDisposable disposable: Disposable) {
         mockkStatic(::authAndUpdateConfig)
+        projectExtension.project.replaceService(ToolkitConnectionManager::class.java, mockk<ToolkitConnectionManager>(relaxed = true), disposable)
 
         val startUrl = aString()
         val region = mockRegionProvider.createAwsRegion()
@@ -132,6 +171,17 @@ class SetupAuthenticationDialogTest {
                 this.region = region
             }
         }
+
+        val fakeConnection = LegacyManagedBearerSsoConnection(startUrl, region.id, scopes)
+        every {
+            authAndUpdateConfig(
+                projectExtension.project,
+                UserConfigSsoSessionProfile("", region.id, startUrl, scopes + "sso:account:access"),
+                configFacade,
+                any(),
+                any()
+            )
+        } returns fakeConnection
 
         runInEdtAndWait {
             SetupAuthenticationDialog(
