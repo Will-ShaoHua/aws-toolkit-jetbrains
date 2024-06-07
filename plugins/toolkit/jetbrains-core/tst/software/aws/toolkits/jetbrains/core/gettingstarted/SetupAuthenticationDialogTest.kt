@@ -69,7 +69,6 @@ class SetupAuthenticationDialogTest {
     fun setup() {
         mockClientManager.create<SsoOidcClient>()
         mockClientManager.create<SsoClient>()
-
     }
 
     @AfterEach
