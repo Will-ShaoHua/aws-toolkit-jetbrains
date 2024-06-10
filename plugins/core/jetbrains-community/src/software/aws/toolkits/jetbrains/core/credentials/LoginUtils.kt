@@ -68,6 +68,7 @@ sealed interface Login {
             try {
                 configFilesFacade.readSsoSessions()
             } catch (e: Exception) {
+                loginHandler.onError(e)
                 println("Failed to read sso sessions file")
                 return null
             }
