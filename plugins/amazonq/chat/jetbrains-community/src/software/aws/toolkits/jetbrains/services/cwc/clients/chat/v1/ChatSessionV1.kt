@@ -185,6 +185,7 @@ class ChatSessionV1(
             )
         } finally {
             channel.close()
+            println()
         }
 
         awaitClose {
