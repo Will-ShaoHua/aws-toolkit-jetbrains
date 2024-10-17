@@ -106,11 +106,9 @@ class ProjectContextProvider(val project: Project, private val encoderServer: En
                     if (isInitSuccess) {
                         logger.info { "project context index starting" }
                         delay(300)
-                        if (CodeWhispererSettings.getInstance().isProjectContextEnabled()) {
-                            val isIndexSuccess = index()
-                            if (isIndexSuccess) isIndexComplete.set(true)
-                            return@launch
-                        }
+                        val isIndexSuccess = index()
+                        if (isIndexSuccess) isIndexComplete.set(true)
+                        return@launch
                     }
                 } catch (e: Exception) {
                     if (e.stackTraceToString().contains("Connection refused")) {
@@ -138,7 +136,12 @@ class ProjectContextProvider(val project: Project, private val encoderServer: En
         var duration = (System.currentTimeMillis() - indexStartTime).toDouble()
         logger.debug { "time elapsed to collect project context files: ${duration}ms, collected ${filesResult.files.size} files" }
 
-        val encrypted = encryptRequest(IndexRequest(filesResult.files, projectRoot, "all", ""))
+        val config = if (CodeWhispererSettings.getInstance().isProjectContextEnabled()) {
+            "all"
+        } else {
+            "default"
+        }
+        val encrypted = encryptRequest(IndexRequest(filesResult.files, projectRoot, config, ""))
         val response = sendMsgToLsp(LspMessage.Index, encrypted)
 
         duration = (System.currentTimeMillis() - indexStartTime).toDouble()
