@@ -12,5 +12,6 @@
     <ID>FunctionOnlyReturningConstant:CodeWhispererCodeScanTestBase.kt$CodeWhispererCodeScanTestBase$protected fun getFakeRecommendationsOnNonExistentFile()</ID>
     <ID>ImplicitDefaultLocale:CodeWhispererColorUtil.kt$CodeWhispererColorUtil$String.format("#%02x%02x%02x", this.red, this.green, this.blue)</ID>
     <ID>LoopWithTooManyJumpStatements:CodeWhispererEditorManager.kt$CodeWhispererEditorManager$while</ID>
+    <ID>SpacingAroundComma:SupplementalContextStrategy.kt$CrossFileStrategy.ProjectContext$,</ID>
   </CurrentIssues>
 </SmellBaseline>

@@ -25,9 +25,9 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import software.aws.toolkits.jetbrains.services.amazonq.project.EncoderServer
-import software.aws.toolkits.jetbrains.services.amazonq.project.ProjectContextProvider
 import software.aws.toolkits.jetbrains.services.amazonq.project.InlineBm25Chunk
 import software.aws.toolkits.jetbrains.services.amazonq.project.LspMessage
+import software.aws.toolkits.jetbrains.services.amazonq.project.ProjectContextProvider
 import software.aws.toolkits.jetbrains.services.amazonq.project.RelevantDocument
 import software.aws.toolkits.jetbrains.utils.rules.CodeInsightTestFixtureRule
 import software.aws.toolkits.jetbrains.utils.rules.JavaCodeInsightTestFixtureRule

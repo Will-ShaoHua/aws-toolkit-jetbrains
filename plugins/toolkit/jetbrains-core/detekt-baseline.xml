@@ -9,10 +9,7 @@
     <ID>CommentWrapping:S3VirtualBucket.kt$S3VirtualBucket$/* Unit tests refuse to open this in an editor if this is true */</ID>
     <ID>CommentWrapping:SamInitSelectionPanel.kt$SamInitSelectionPanel$/* Only available in PyCharm! */</ID>
     <ID>CommentWrapping:SamInitSelectionPanel.kt$SamInitSelectionPanel$/* Used in Rider to refresh the validation */</ID>
-    <ID>DestructuringDeclarationWithTooManyEntries:JavaCodeScanSessionConfig.kt$JavaCodeScanSessionConfig$val (sourceFiles, srcPayloadSize, totalLines, buildPaths) = includeDependencies()</ID>
     <ID>ExpressionBodySyntax:CawsProjectListRenderer.kt$CawsProjectListRenderer.&lt;no name provided>$return myContext</ID>
-    <ID>ExpressionBodySyntax:CodeWhispererSettingsTest.kt$CodeWhispererSettingsTest.&lt;no name provided>$return myToolWindows[id]</ID>
-    <ID>ExpressionBodySyntax:CodeWhispererTelemetryService.kt$CodeWhispererTelemetryService$return previousUserTriggerDecisionTimestamp?.let { Duration.between(it, Instant.now()).toMillis().toDouble() }</ID>
     <ID>Filename:AwsSettingsPanel.kt$software.aws.toolkits.jetbrains.core.credentials.AwsSettingsPanel.kt</ID>
     <ID>Filename:CawsSpaceProjectInfo.kt$software.aws.toolkits.jetbrains.services.caws.CawsSpaceProjectInfo.kt</ID>
     <ID>Filename:ShowLogsAroundAction.kt$software.aws.toolkits.jetbrains.services.cloudwatch.logs.actions.ShowLogsAroundAction.kt</ID>
@@ -64,7 +61,6 @@
     <ID>FunctionNaming:SamVersionCacheTest.kt$SamVersionCacheTest$@Test fun errorCode_InvalidOption()</ID>
     <ID>FunctionNaming:SamVersionCacheTest.kt$SamVersionCacheTest$@Test fun errorCode_RandomError()</ID>
     <ID>FunctionNaming:SamVersionCacheTest.kt$SamVersionCacheTest$@Test fun successExecution_EmptyOutput()</ID>
-    <ID>FunctionOnlyReturningConstant:CodeWhispererCodeScanTestBase.kt$CodeWhispererCodeScanTestBase$protected fun getFakeRecommendationsOnNonExistentFile()</ID>
     <ID>LoopWithTooManyJumpStatements:DownloadObjectAction.kt$DownloadObjectAction$for</ID>
     <ID>TopLevelPropertyNaming:EventsFetcherTest.kt$private const val nonEmptyMessage = "Second call on the same page must not return anything"</ID>
     <ID>TopLevelPropertyNaming:EventsFetcherTest.kt$private const val wrongPageMessage = "Wrong list of available pages"</ID>
@@ -80,7 +76,6 @@
     <ID>UseCheckOrError:CreateFunctionDialog.kt$CreateFunctionDialog$throw IllegalStateException("LambdaBuilder for $runtime not found")</ID>
     <ID>UseCheckOrError:CreateFunctionDialog.kt$CreateFunctionDialog$throw IllegalStateException("Runtime is missing when package type is Zip")</ID>
     <ID>UseCheckOrError:CreationDialog.kt$CreationDialog$throw IllegalStateException("AppRunner creation dialog had no type selected!")</ID>
-    <ID>UseCheckOrError:CredentialChoice.kt$CredentialProviderSelector2$throw IllegalStateException("Can't get credential identifier when the selection is an invalid one")</ID>
     <ID>UseCheckOrError:DataContextUtils.kt$throw IllegalStateException("Required dataId '${dataId.name}` was missing")</ID>
     <ID>UseCheckOrError:DetailedLogRecord.kt$DetailedLogRecord.Companion$throw IllegalStateException("$log format does not appear to be in a valid format (&lt;account-id>:&lt;log-group-name>)")</ID>
     <ID>UseCheckOrError:DownloadLogStream.kt$LogStreamDownloadToFileTask.&lt;no name provided>$throw IllegalStateException("Log Stream was downloaded but does not exist on disk!")</ID>
@@ -140,7 +135,6 @@
     <ID>UseCheckOrError:UpdateFunctionCodeDialog.kt$UpdateFunctionCodeDialog$throw IllegalStateException("LambdaBuilder for ${initialSettings.runtime} not found")</ID>
     <ID>UseCheckOrError:UpdateFunctionCodeDialog.kt$UpdateFunctionCodeDialog$throw IllegalStateException("Runtime is missing when package type is Zip")</ID>
     <ID>UseCheckOrError:UpdateFunctionCodePanel.kt$UpdateFunctionCodePanel$throw IllegalStateException("Unsupported package type $packageType")</ID>
-    <ID>UseRequire:AwsSettingsConfigurable.kt$AwsSettingsConfigurable$throw IllegalArgumentException("Set file is not an executable")</ID>
     <ID>UseRequire:FourPartVersion.kt$FourPartVersion.Companion$throw IllegalArgumentException("[$version] not in the format of MAJOR.MINOR.PATCH.BUILD")</ID>
     <ID>UseRequire:SemanticVersion.kt$SemanticVersion.Companion$throw IllegalArgumentException("[$version] not in the format of MAJOR.MINOR.PATCH")</ID>
   </CurrentIssues>
