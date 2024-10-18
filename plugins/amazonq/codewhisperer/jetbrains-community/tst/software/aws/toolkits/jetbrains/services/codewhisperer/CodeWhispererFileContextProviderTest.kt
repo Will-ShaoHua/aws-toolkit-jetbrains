@@ -3,23 +3,46 @@
 
 package software.aws.toolkits.jetbrains.services.codewhisperer
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.DisposableRule
 import com.intellij.testFramework.fixtures.JavaCodeInsightTestFixture
+import com.intellij.testFramework.replaceService
 import com.intellij.testFramework.runInEdtAndGet
 import com.intellij.testFramework.runInEdtAndWait
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyValueClass
+import org.mockito.kotlin.anyVararg
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doSuspendableAnswer
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.spy
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import software.aws.toolkits.jetbrains.services.amazonq.CodeWhispererFeatureConfigService
+import software.aws.toolkits.jetbrains.services.amazonq.project.InlineBm25Chunk
+import software.aws.toolkits.jetbrains.services.amazonq.project.ProjectContextController
 import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages.CodeWhispererCpp
 import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages.CodeWhispererCsharp
 import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages.CodeWhispererGo
@@ -31,7 +54,11 @@ import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages
 import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages.CodeWhispererRuby
 import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages.CodeWhispererTsx
 import software.aws.toolkits.jetbrains.services.codewhisperer.language.languages.CodeWhispererTypeScript
+import software.aws.toolkits.jetbrains.services.codewhisperer.model.Chunk
+import software.aws.toolkits.jetbrains.services.codewhisperer.model.FileContextInfo
+import software.aws.toolkits.jetbrains.services.codewhisperer.model.SupplementalContextInfo
 import software.aws.toolkits.jetbrains.services.codewhisperer.util.CodeWhispererConstants
+import software.aws.toolkits.jetbrains.services.codewhisperer.util.CrossFileStrategy
 import software.aws.toolkits.jetbrains.services.codewhisperer.util.DefaultCodeWhispererFileContextProvider
 import software.aws.toolkits.jetbrains.services.codewhisperer.util.FileContextProvider
 import software.aws.toolkits.jetbrains.utils.rules.HeavyJavaCodeInsightTestFixtureRule
@@ -59,6 +86,51 @@ class CodeWhispererFileContextProviderTest {
         project = projectRule.project
 
         sut = FileContextProvider.getInstance(project) as DefaultCodeWhispererFileContextProvider
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `t`() = runTest {
+        sut = spy(sut)
+        val src = """
+            public class Main {
+                public static void main() {
+                    System.out.println("Hello world");
+                }
+            }
+        """.trimIndent()
+
+        val psiFiles = setupFixture(fixture)
+        val psiFile = psiFiles[0]
+
+        val mockFileContext = aFileContextInfo(CodeWhispererJava.INSTANCE)
+        val mockFeatureConfig: CodeWhispererFeatureConfigService = mock { on { getInlineCompletion() } doReturn true }
+        ApplicationManager.getApplication()
+            .replaceService(CodeWhispererFeatureConfigService::class.java, mockFeatureConfig, disposableRule.disposable)
+
+////        val testDispatcher = TestDispatcher()
+////        Dispatchers.setMain(testDispatcher)
+////        advanceTimeBy(51L)
+//
+//        val actual = withContext(testDispatcher) {
+//            sut.extractSupplementalFileContextForSrc(psiFile, mockFileContext)
+//        }
+
+        val mockProjectContext = mock<ProjectContextController> {
+            onBlocking {
+                queryInline(any(), any())
+            } doSuspendableAnswer {
+                delay(51)
+                async {
+                    listOf(InlineBm25Chunk("", "projectContext", 0.0))
+                }
+            }
+        }
+        project.replaceService(ProjectContextController::class.java, mockProjectContext, disposableRule.disposable)
+
+        val result = sut.extractSupplementalFileContextForSrc(psiFile, mockFileContext)
+
+        println()
     }
 
     @Test

@@ -14,10 +14,14 @@ import com.intellij.openapi.vfs.newvfs.events.VFileCreateEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import software.aws.toolkits.core.utils.getLogger
 import software.aws.toolkits.core.utils.warn
 import software.aws.toolkits.jetbrains.settings.CodeWhispererSettings
+import kotlin.coroutines.coroutineContext
 
 @Service(Service.Level.PROJECT)
 class ProjectContextController(private val project: Project, private val cs: CoroutineScope) : Disposable {
@@ -56,12 +60,16 @@ class ProjectContextController(private val project: Project, private val cs: Cor
         }
     }
 
-    fun queryInline(query: String, filePath: String): List<InlineBm25Chunk> {
-        try {
-            return projectContextProvider.queryInline(query, filePath)
-        } catch (e: Exception) {
-            logger.warn { "error while querying inline for project context $e.message" }
-            return emptyList()
+    suspend fun queryInline(query: String, filePath: String): Deferred<List<InlineBm25Chunk>> {
+        return withContext(coroutineContext) {
+            async {
+                return@async try {
+                    projectContextProvider.queryInline(query, filePath)
+                } catch (e: Exception) {
+                    logger.warn { "error while querying inline for project context $e.message" }
+                    emptyList()
+                }
+            }
         }
     }
 
