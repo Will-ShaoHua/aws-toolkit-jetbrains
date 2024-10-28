@@ -40,6 +40,7 @@ fun foo() {
             rule.compileAndLintWithContext(
                 environment,
                 """
+import com.intellij.openapi.project.Project
 import org.slf4j.LoggerFactory
 
 val LOG = LoggerFactory.getLogger("")

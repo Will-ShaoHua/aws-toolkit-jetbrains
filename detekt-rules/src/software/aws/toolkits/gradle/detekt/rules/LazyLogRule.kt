@@ -27,13 +27,13 @@ class LazyLogRule : Rule() {
     override fun visitCallExpression(element: KtCallExpression) {
         super.visitCallExpression(element)
         element.getCallNameExpression()?.let {
-            if (!logMethods.contains(it.text)) {
-                return
-            }
+//            if (!logMethods.contains(it.text)) {
+//                return
+//            }
 
-            if (optOut.any { name -> element.containingKtFile.packageFqName.asString().startsWith(name) }) {
-                return
-            }
+//            if (optOut.any { name -> element.containingKtFile.packageFqName.asString().startsWith(name) }) {
+//                return
+//            }
 
             if (bindingContext == BindingContext.EMPTY) return
             val resolvedCall = it.getResolvedCall(bindingContext)
@@ -59,6 +59,6 @@ class LazyLogRule : Rule() {
 
     companion object {
         private val logMethods = setOf("error", "warn", "info", "debug", "trace")
-        val loggers = setOf("org.slf4j.Logger")
+        val loggers = setOf("org.slf4j.Logger", "com.intellij.openapi.project.Project")
     }
 }
