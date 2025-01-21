@@ -91,5 +91,10 @@
                 <keyboard-shortcut keymap="$default" first-keystroke="control I"/>
             </action>
         </group>
+
+        <action id="aws.toolkit.jetbrains.core.services.cwc.commands.RecordAudio"
+                class="software.aws.toolkits.jetbrains.services.amazonq.speechtotext.StartRecordingAction">
+            <keyboard-shortcut keymap="$default" first-keystroke="alt R"/>
+        </action>
     </actions>
 </idea-plugin>

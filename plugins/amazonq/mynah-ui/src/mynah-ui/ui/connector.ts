@@ -184,6 +184,7 @@ export class Connector {
                         this.docChatConnector.requestGenerativeAIAnswer(tabID, payload)
                         break
                     default:
+                        console.log(`connector.js@requestGenerativeAiAnwser`)
                         this.cwChatConnector.requestGenerativeAIAnswer(tabID, payload)
                         break
                 }
@@ -245,6 +246,8 @@ export class Connector {
     }
 
     handleMessageReceive = async (message: MessageEvent): Promise<void> => {
+        console.log(`connector.js@handleMessageReceive`)
+        console.log(message)
         if (message.data === undefined) {
             return
         }

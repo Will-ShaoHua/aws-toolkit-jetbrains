@@ -21,6 +21,8 @@ dependencies {
     implementation(project(":plugin-amazonq:codewhisperer:jetbrains-community"))
     implementation(libs.diff.util)
     implementation(libs.commons.text)
+    implementation(platform("com.google.cloud:libraries-bom:26.1.4"))
+    implementation("com.google.cloud:google-cloud-speech")
 
     compileOnly(project(":plugin-core:jetbrains-community"))
 

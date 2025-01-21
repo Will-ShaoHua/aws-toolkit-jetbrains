@@ -190,8 +190,9 @@ export class Connector {
         })
     }
 
-    requestGenerativeAIAnswer = (tabID: string, payload: ChatPayload): Promise<any> =>
-        new Promise((resolve, reject) => {
+    requestGenerativeAIAnswer = (tabID: string, payload: ChatPayload): Promise<any> => {
+        console.log(`cwChatConnector@requestGenerativeAiAnswer`)
+        return new Promise((resolve, reject) => {
             this.sendMessageToExtension({
                 tabID: tabID,
                 command: 'chat-prompt',
@@ -200,6 +201,8 @@ export class Connector {
                 tabType: 'cwc',
             })
         })
+    }
+
 
     clearChat = (tabID: string): void => {
         this.sendMessageToExtension({

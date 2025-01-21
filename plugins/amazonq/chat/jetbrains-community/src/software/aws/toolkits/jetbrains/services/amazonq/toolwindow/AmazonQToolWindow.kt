@@ -69,7 +69,7 @@ class AmazonQToolWindow private constructor(
         ApplicationManager.getApplication().messageBus.syncPublisher(LafManagerListener.TOPIC).lookAndFeelChanged(LafManager.getInstance())
     }
 
-    private fun sendMessage(message: AmazonQMessage, tabType: String) {
+    fun sendMessageUiToApp(message: AmazonQMessage, tabType: String) {
         appConnections.filter { it.app.tabTypes.contains(tabType) }.forEach {
             scope.launch {
                 it.messagesFromUiToApp.publish(message)
@@ -77,7 +77,7 @@ class AmazonQToolWindow private constructor(
         }
     }
 
-    private fun sendMessageAppToUi(message: AmazonQMessage, tabType: String) {
+    fun sendMessageAppToUi(message: AmazonQMessage, tabType: String) {
         appConnections.filter { it.app.tabTypes.contains(tabType) }.forEach {
             scope.launch {
                 it.messagesFromAppToUi.publish(message)
@@ -151,7 +151,7 @@ class AmazonQToolWindow private constructor(
     companion object {
         fun getInstance(project: Project): AmazonQToolWindow = project.service<AmazonQToolWindow>()
 
-        private fun showChatWindow(project: Project) = runInEdt {
+        fun showChatWindow(project: Project) = runInEdt {
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(AmazonQToolWindowFactory.WINDOW_ID)
             toolWindow?.show()
         }
@@ -162,7 +162,7 @@ class AmazonQToolWindow private constructor(
 
             // Send the interaction message
             val window = getInstance(project)
-            window.sendMessage(OnboardingPageInteraction(OnboardingPageInteractionType.CwcButtonClick), "cwc")
+            window.sendMessageUiToApp(OnboardingPageInteraction(OnboardingPageInteractionType.CwcButtonClick), "cwc")
         }
 
         fun openScanTab(project: Project) {

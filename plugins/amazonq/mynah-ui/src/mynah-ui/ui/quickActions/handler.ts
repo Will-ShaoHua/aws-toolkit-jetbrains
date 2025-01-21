@@ -51,6 +51,8 @@ export class QuickActionHandler {
 
     // Entry point for `/xxx` commands
     public handleCommand(chatPrompt: ChatPrompt, tabID: string, eventId?: string) {
+        console.log(`quickActionsHandler.ts@handleCommand`)
+        console.log(`chatPrompt: ${JSON.stringify(chatPrompt)}`)
         this.tabsStorage.resetTabTimer(tabID)
         switch (chatPrompt.command) {
             case '/dev':
@@ -336,7 +338,9 @@ private handleDocCommand(chatPrompt: ChatPrompt, tabID: string, taskName: string
         this.showScanInTab(affectedTabId)
     }
 
+    // TODO: export and use
     private handleCodeTestCommand(chatPrompt: ChatPrompt, tabID: string, eventId: string | undefined) {
+        console.log(`handleCodeTestCommand, isCodeTestEnabled=${this.isCodeTestEnabled}`)
         if (!this.isCodeTestEnabled) {
             return
         }

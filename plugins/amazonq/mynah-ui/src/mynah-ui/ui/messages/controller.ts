@@ -68,6 +68,8 @@ export class MessageController {
     }
 
     public sendMessageToTab(message: ChatItem, tabType: TabType): string | undefined {
+        console.log(`controller.ts@sendMessageToTab`)
+        console.log(`message: ${JSON.stringify(message)}`)
         const selectedTab = this.tabsStorage.getSelectedTab()
 
         if (

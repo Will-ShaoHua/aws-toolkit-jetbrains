@@ -111,6 +111,7 @@ class BrowserConnector(
 
     private fun addMessageHook(browser: Browser) = callbackFlow {
         val handler = Function<String, Response> {
+            println("addMessageHook.trySend: $it")
             trySend(it)
             Response(null)
         }

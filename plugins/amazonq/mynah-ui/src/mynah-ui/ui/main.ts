@@ -43,6 +43,7 @@ export const createMynahUI = (
     codeTestEnabled: boolean,
     highlightCommand?: QuickActionCommand,
 ) => {
+    console.log(`creat mynah ui`)
     let disclaimerCardActive = !disclaimerAcknowledged
 
     // eslint-disable-next-line prefer-const
@@ -107,6 +108,7 @@ export const createMynahUI = (
          * Proxy for allowing underlying common connectors to call quick action handlers
          */
         handleCommand: (chatPrompt: ChatPrompt, tabId: string) => {
+            console.log(`main.ts@111`)
             quickActionHandler.handleCommand(chatPrompt, tabId)
         },
         onUpdateAuthentication: (
@@ -187,6 +189,7 @@ export const createMynahUI = (
             })
         },
         onAsyncEventProgress: (tabID: string, inProgress: boolean, message: string | undefined, cancelButtonWhenLoading: boolean = false) => {
+            console.log(`main.ts@onAsyncEventProgress`)
             if (inProgress) {
                 mynahUI.updateStore(tabID, {
                     loadingChat: true,
@@ -303,9 +306,12 @@ export const createMynahUI = (
             }
         },
         sendMessageToExtension: message => {
+            console.log(`main.ts@sendMessageToExtension`, message)
             ideApi.postMessage(message)
         },
         onChatAnswerUpdated: (tabID: string, item) => {
+            console.log(`main.ts@onChatAnswerUpdated`)
+            console.log(item)
             if (item.messageId !== undefined) {
                 mynahUI.updateChatAnswerWithMessageId(tabID, item.messageId, {
                     ...(item.body !== undefined ? { body: item.body } : {}),
@@ -327,6 +333,8 @@ export const createMynahUI = (
             }
         },
         onChatAnswerReceived: (tabID: string, item: CWCChatItem) => {
+            console.log(`main.ts@onChatAnswerReceived`)
+            console.log(item)
             if (item.type === ChatItemType.ANSWER_PART || item.type === ChatItemType.CODE_RESULT) {
                 mynahUI.updateLastChatAnswer(tabID, {
                     ...(item.messageId !== undefined ? { messageId: item.messageId } : {}),
@@ -378,6 +386,7 @@ export const createMynahUI = (
             }
         },
         onMessageReceived: (tabID: string, messageData: MynahUIDataModel) => {
+            console.log(`main.ts@onMessageReceived=`, JSON.stringify(messageData))
             mynahUI.updateStore(tabID, messageData)
         },
         onFileComponentUpdate: (
@@ -412,6 +421,7 @@ export const createMynahUI = (
             tabsStorage.updateTabStatus(tabID, 'free')
         },
         onError: (tabID: string, message: string, title: string) => {
+            console.log(`main.ts@onError`, message)
             const answer: ChatItem = {
                 type: ChatItemType.ANSWER,
                 body: `**${title}** 
@@ -576,6 +586,7 @@ export const createMynahUI = (
         onTabRemove: connector.onTabRemove,
         onTabChange: connector.onTabChange,
         onChatPrompt: (tabID, prompt, eventId) => {
+            console.log(`prompt=${JSON.stringify(prompt)}`)
             if ((prompt.prompt ?? '') === '' && (prompt.command ?? '') === '') {
                 return
             }
@@ -591,9 +602,11 @@ export const createMynahUI = (
                 return
             } else if (tabsStorage.getTab(tabID)?.type === 'codetest') {
                 if(prompt.command !== undefined && prompt.command.trim() !== '' && prompt.command !== '/test') {
+                    console.log(1)
                     quickActionHandler.handleCommand(prompt, tabID, eventId)
                     return
                 } else {
+                    console.log(2)
                     connector.requestAnswer(tabID, {
                         chatMessage: prompt.prompt ?? ''
                     })
@@ -627,6 +640,8 @@ export const createMynahUI = (
                 return
             }
 
+            console.log(`tabId=${tabID}`)
+            console.log(`textMessageHandler is handling prompt=${prompt}`)
             textMessageHandler.handle(prompt, tabID)
         },
         onVote: connector.onChatItemVoted,

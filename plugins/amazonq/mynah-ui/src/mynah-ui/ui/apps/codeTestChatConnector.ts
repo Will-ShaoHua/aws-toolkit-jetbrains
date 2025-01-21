@@ -326,6 +326,7 @@ export class CodeTestChatConnector {
                 await this.processChatMessage(messageData)
                 break
             case 'addAnswer':
+                console.log(`123123123123`)
                 this.addAnswer(messageData)
                 break
             case 'updateAnswer':
