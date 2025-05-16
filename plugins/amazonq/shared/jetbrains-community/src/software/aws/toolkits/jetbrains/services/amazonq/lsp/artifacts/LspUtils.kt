@@ -67,8 +67,11 @@ fun getSubFolders(basePath: Path): List<Path> = try {
 
 fun moveFilesFromSourceToDestination(sourceDir: Path, targetDir: Path) {
     try {
-        Files.createDirectories(targetDir.parent)
-        Files.move(sourceDir, targetDir, StandardCopyOption.REPLACE_EXISTING)
+        Files.createDirectories(targetDir)
+        sourceDir.toFile().listFiles().forEach {
+            Files.move(Path.of(it.toURI()), Path.of(targetDir.toString(), it.name), StandardCopyOption.REPLACE_EXISTING)
+        }
+//        Files.move(sourceDir, targetDir, StandardCopyOption.REPLACE_EXISTING)
     } catch (e: Exception) {
         throw IllegalStateException("Failed to move files from $sourceDir to $targetDir", e)
     }
